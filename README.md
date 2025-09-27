@@ -7,17 +7,17 @@ To edit project and see changes use in the terminal:
 
 ## Project structure
 card_game/ – Root folder of the Blazor project
-*card_game.csproj – Project file containing build and dependency information
-*Program.cs – Entry point of the application
-*_Imports.razor – Common using directives for Razor components
-*App.razor – Root component of the Blazor application
+* card_game.csproj – Project file containing build and dependency information
+* Program.cs – Entry point of the application
+* _Imports.razor – Common using directives for Razor components
+* App.razor – Root component of the Blazor application
 
 # Folders
-*wwwroot/ – Static files (images, CSS, JS)
-  *images/ – Game images (cards, logos, etc.)
-  *css/ – Global CSS files
-*Pages/ – Razor pages (views) for the application
-  *Main.razor – Entry page
+* wwwroot/ – Static files (images, CSS, JS)
+  * images/ – Game images (cards, logos, etc.)
+  * css/ – Global CSS files
+* Pages/ – Razor pages (views) for the application
+  * Main.razor – Entry page
 
 Start.razor – Main game page with leaderboard, buttons, and card display
 
