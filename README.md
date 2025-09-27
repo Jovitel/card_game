@@ -1,10 +1,17 @@
 # The card game "Durnius"
 
-## How to use
+## Getting started
 
-To edit project and see changes use this command in the terminal:
-**dotnet watch run**
+This project was created using Blazor WebAssembly:
+```
+dotnet new blazorwasm -o card_game
+```
 
+After creating the project, you can run it locally with:
+```
+cd card_game
+dotnet watch run
+```
 ## Project structure
 card_game/ – Root folder of the Blazor project
 * card_game.csproj – Project file containing build and dependency information
