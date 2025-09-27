@@ -2,7 +2,7 @@
 
 ## How to use
 
-To edit project and see changes use in the terminal:
+To edit project and see changes use this command in the terminal:
 **dotnet watch run**
 
 ## Project structure
