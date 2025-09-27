@@ -7,7 +7,7 @@ This project was created using Blazor WebAssembly:
 dotnet new blazorwasm -o card_game
 ```
 
-After creating the project, you can run it locally with:
+After creating the project, you can run it locally and see the changes while editing with:
 ```
 cd card_game
 dotnet watch run
