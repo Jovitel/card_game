@@ -1,0 +1,190 @@
+@page "/login"
+@layout MainLayout
+@inject NavigationManager Nav
+@inject HttpClient Http
+
+@code {
+    private string email = string.Empty;
+    private string password = string.Empty;
+    private bool showErrors = false;
+    private string loginError = string.Empty;
+
+    private bool IsFormValid =>
+        !string.IsNullOrWhiteSpace(email) &&
+        email.Contains("@") &&
+        !string.IsNullOrWhiteSpace(password) &&
+        password.Length >= 6;
+
+    private async Task PerformLogin()
+    {
+        showErrors = true; // klaidos pasimato tik paspaudus mygtuką
+
+        if (!IsFormValid) return;
+
+        var loginData = new { Email = email, Password = password };
+        var response = await Http.PostAsJsonAsync("http://localhost:5070/login", loginData);
+
+        if (response.IsSuccessStatusCode)
+        {
+            Nav.NavigateTo("/start");
+        }
+        else
+        {
+            loginError = "Invalid email or password.";
+        }
+    }
+
+    private string EmailError =>
+        showErrors && string.IsNullOrWhiteSpace(email) ? "E-mail is required." :
+        (showErrors && !email.Contains("@") ? "Email must contain '@'." : "");
+
+    private string PasswordError =>
+        showErrors && string.IsNullOrWhiteSpace(password) ? "Password is required." :
+        (showErrors && password.Length < 6 ? "Password must be at least 6 characters." : "");
+}
+
+<div class="index-container">
+
+    <img src="images/durnius.png" alt="Žaidimo nuotrauka" class="top-image" />
+
+    <div class="form-container">
+        <div class="column">
+            <label for="email" class="form-label">E-mail</label>
+            <input type="email" @bind="email" placeholder="E-mail" class="input-field" />
+            <small class="error">@EmailError</small>
+        
+            <label for="password" class="form-label">Password</label>
+            <input type="password" @bind="password" placeholder="Password" class="input-field" />
+            <small class="error">@PasswordError</small>
+             @if (!string.IsNullOrEmpty(loginError))
+                    {
+                        <small class="error error-global">@loginError</small>
+                    }
+        </div>
+        <div class="line">
+            <NavLink class="btn" href="/">Back</NavLink>
+            <button class="btn" @onclick="PerformLogin">Log in</button>
+        </div>
+    </div>
+</div>
+
+
+<style>
+.error-global {
+    font-size: 14px;
+    font-weight: bold; 
+    text-align: center;
+    color: darkred;
+}
+.error {
+    color: red;
+    font-size: 12px;
+    text-align: left;
+}
+.index-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 20px;
+}
+
+.top-image {
+    width: 350px;
+    height: auto;
+    margin-bottom: 30px;
+    border-radius: 12px;
+}
+
+.form-container {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    width: 500px;
+}
+
+.column {
+    display: flex;
+    flex-direction: column;
+    gap: 5px;
+    flex: 1;
+}
+
+.form-label {
+    font-size: 16px;
+    font-weight: bold;
+    color: #2c425a;
+    text-align: left;        
+    margin-bottom: -8px;     
+    margin-left: 4px;
+    letter-spacing: 0.5px;
+}
+
+.input-field {
+    padding: 12px;
+    border: 2px solid #2c425a;
+    border-radius: 8px;
+    font-size: 16px;
+    outline: none;
+}
+
+.input-field:focus {
+    border-color: #56708c;
+    background-color: #f9f9f9;
+}
+
+.page-body {
+    background: #a2c2de;
+    padding: 20px;
+    border-radius: 12px;
+    max-width: 1000px;
+    min-height: 400px;
+}
+
+.layout-container {
+    background-color: #2c425a;
+    height: 100vh;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    flex-direction: column;
+}
+
+/* Mygtukai */
+.btn {
+    background-color: #2c425a;
+    color: white;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: 0.3s;
+    text-decoration: none;
+    text-align: center;
+    width: 500px;
+}
+.btn[disabled] {
+    background-color: #56708c;
+    cursor: not-allowed;
+    color: #f0e1b4;
+}
+
+.btn:hover:enabled {
+    background-color: #56708c;
+    color: #f0e1b4;
+}
+.btn:hover{
+    background-color: #56708c;
+    color: #f0e1b4;
+}
+.line {
+    display: flex;
+    flex-direction: row;
+    justify-content: center;
+    gap: 30px;
+    margin-top: 20px;
+}
+</style>

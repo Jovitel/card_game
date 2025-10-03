@@ -1,0 +1,85 @@
+{
+  "Files": [
+    {
+      "Id": "C:\\Users\\JV\\Desktop\\APSS\\Durnius\\card_game\\Blazor\\bin\\Debug\\net8.0\\wwwroot\\_framework\\blazor.webassembly.js",
+      "PackagePath": "staticwebassets\\_framework\\blazor.webassembly.js"
+    },
+    {
+      "Id": "C:\\Users\\JV\\Desktop\\APSS\\Durnius\\card_game\\Blazor\\obj\\Debug\\net8.0\\compressed\\5hn09kq1pn.gz",
+      "PackagePath": "staticwebassets\\_framework\\blazor.webassembly.js.gz"
+    },
+    {
+      "Id": "C:\\Users\\JV\\Desktop\\APSS\\Durnius\\card_game\\Blazor\\obj\\Debug\\net8.0\\scopedcss\\bundle\\card_game.styles.css",
+      "PackagePath": "staticwebassets\\card_game.styles.css"
+    },
+    {
+      "Id": "C:\\Users\\JV\\Desktop\\APSS\\Durnius\\card_game\\Blazor\\wwwroot\\css\\app.css",
+      "PackagePath": "staticwebassets\\css\\app.css"
+    },
+    {
+      "Id": "C:\\Users\\JV\\Desktop\\APSS\\Durnius\\card_game\\Blazor\\wwwroot\\css\\bootstrap\\bootstrap.min.css",
+      "PackagePath": "staticwebassets\\css\\bootstrap\\bootstrap.min.css"
+    },
+    {
+      "Id": "C:\\Users\\JV\\Desktop\\APSS\\Durnius\\card_game\\Blazor\\wwwroot\\css\\bootstrap\\bootstrap.min.css.map",
+      "PackagePath": "staticwebassets\\css\\bootstrap\\bootstrap.min.css.map"
+    },
+    {
+      "Id": "C:\\Users\\JV\\Desktop\\APSS\\Durnius\\card_game\\Blazor\\wwwroot\\favicon.png",
+      "PackagePath": "staticwebassets\\favicon.png"
+    },
+    {
+      "Id": "C:\\Users\\JV\\Desktop\\APSS\\Durnius\\card_game\\Blazor\\wwwroot\\icon-192.png",
+      "PackagePath": "staticwebassets\\icon-192.png"
+    },
+    {
+      "Id": "C:\\Users\\JV\\Desktop\\APSS\\Durnius\\card_game\\Blazor\\wwwroot\\images\\cards.png",
+      "PackagePath": "staticwebassets\\images\\cards.png"
+    },
+    {
+      "Id": "C:\\Users\\JV\\Desktop\\APSS\\Durnius\\card_game\\Blazor\\wwwroot\\images\\cards_full.png",
+      "PackagePath": "staticwebassets\\images\\cards_full.png"
+    },
+    {
+      "Id": "C:\\Users\\JV\\Desktop\\APSS\\Durnius\\card_game\\Blazor\\wwwroot\\images\\cards_light.png",
+      "PackagePath": "staticwebassets\\images\\cards_light.png"
+    },
+    {
+      "Id": "C:\\Users\\JV\\Desktop\\APSS\\Durnius\\card_game\\Blazor\\wwwroot\\images\\cards_right.png",
+      "PackagePath": "staticwebassets\\images\\cards_right.png"
+    },
+    {
+      "Id": "C:\\Users\\JV\\Desktop\\APSS\\Durnius\\card_game\\Blazor\\wwwroot\\images\\durnius.png",
+      "PackagePath": "staticwebassets\\images\\durnius.png"
+    },
+    {
+      "Id": "C:\\Users\\JV\\Desktop\\APSS\\Durnius\\card_game\\Blazor\\wwwroot\\images\\settings.png",
+      "PackagePath": "staticwebassets\\images\\settings.png"
+    },
+    {
+      "Id": "C:\\Users\\JV\\Desktop\\APSS\\Durnius\\card_game\\Blazor\\wwwroot\\index.html",
+      "PackagePath": "staticwebassets\\index.html"
+    },
+    {
+      "Id": "C:\\Users\\JV\\Desktop\\APSS\\Durnius\\card_game\\Blazor\\wwwroot\\sample-data\\weather.json",
+      "PackagePath": "staticwebassets\\sample-data\\weather.json"
+    },
+    {
+      "Id": "obj\\Debug\\net8.0\\staticwebassets\\msbuild.build.card_game.props",
+      "PackagePath": "build\\card_game.props"
+    },
+    {
+      "Id": "obj\\Debug\\net8.0\\staticwebassets\\msbuild.buildMultiTargeting.card_game.props",
+      "PackagePath": "buildMultiTargeting\\card_game.props"
+    },
+    {
+      "Id": "obj\\Debug\\net8.0\\staticwebassets\\msbuild.buildTransitive.card_game.props",
+      "PackagePath": "buildTransitive\\card_game.props"
+    },
+    {
+      "Id": "obj\\Debug\\net8.0\\staticwebassets\\msbuild.card_game.Microsoft.AspNetCore.StaticWebAssets.props",
+      "PackagePath": "build\\Microsoft.AspNetCore.StaticWebAssets.props"
+    }
+  ],
+  "ElementsToRemove": []
+}

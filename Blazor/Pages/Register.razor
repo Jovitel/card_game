@@ -1,0 +1,191 @@
+@page "/register"
+@using CardGame.Shared.Models
+@inject HttpClient Http
+@inject NavigationManager Nav
+
+@code {
+    private User newUser = new User();
+    private string repeatPassword = "";
+    private bool showErrors = false;
+    private bool CanRegister =>
+        !string.IsNullOrWhiteSpace(newUser.UserName) &&
+        !string.IsNullOrWhiteSpace(newUser.Email) &&
+        newUser.Email.Contains("@") &&
+        !string.IsNullOrWhiteSpace(newUser.Password) &&
+        newUser.Password.Length >= 6 &&
+        newUser.Password == repeatPassword;
+
+    
+    private async Task RegisterUser()
+    {
+        showErrors = true; // rodom klaidas tik po bandymo registruotis
+
+        if (!CanRegister) return;
+
+        var response = await Http.PostAsJsonAsync("users", newUser);
+
+        if (response.IsSuccessStatusCode)
+            Nav.NavigateTo("/start");
+        else
+            Console.WriteLine(await response.Content.ReadAsStringAsync());
+    }
+    private string UserNameError =>
+        showErrors && string.IsNullOrWhiteSpace(newUser.UserName) ? "User name is required." : "";
+
+    private string EmailError =>
+        showErrors && string.IsNullOrWhiteSpace(newUser.Email) ? "Email is required." :
+        (showErrors && !newUser.Email.Contains("@") ? "Email must contain '@'." : "");
+
+    private string PasswordError =>
+        showErrors && string.IsNullOrWhiteSpace(newUser.Password) ? "Password is required." :
+        (showErrors && newUser.Password.Length < 6 ? "Password must be at least 6 characters." : "");
+
+    private string RepeatPasswordError =>
+        showErrors && newUser.Password != repeatPassword ? "Passwords do not match." : "";
+
+    }
+<div class="index-container">
+
+    <img src="images/durnius.png" alt="Žaidimo nuotrauka" class="top-image" />
+
+    <div class="form-container">
+    <div class="columns">
+        <div class="column">
+            <label class="form-label">User name</label>
+            <input type="text" class="input-field" placeholder="User name" @bind="newUser.UserName" />
+            <small class="error">@UserNameError</small>
+
+            <label class="form-label">E-mail</label>
+            <input type="email" class="input-field" placeholder="E-mail" @bind="newUser.Email"/>
+            <small class="error">@EmailError</small>
+        </div>
+        <div class="column">
+            <label class="form-label">Password</label>
+            <input type="password" class="input-field" placeholder="Password" @bind="newUser.Password"/>
+            <small class="error">@PasswordError</small>
+
+            <label class="form-label">Repeat password</label>
+            <input type="password" class="input-field" placeholder="Repeat password" @bind="repeatPassword"/>
+            <small class="error">@RepeatPasswordError</small>
+        </div>
+    </div>
+    <div class="line">
+        <NavLink class="btn" href="/">Back</NavLink>
+        <button class="btn" @onclick="RegisterUser">Register</button>
+    </div>
+</div>
+
+</div>
+
+<style>
+.error {
+    color: red;
+    font-size: 12px;
+    min-height: 16px;   /* rezervuoja vietą klaidai */
+    text-align: left;
+    margin-top: 2px;    /* vietoj -10px, kad nebūtų šokinėjimo */
+}
+.index-container {
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    text-align: center;
+    padding: 20px;
+}
+
+.top-image {
+    width: 350px;
+    height: auto;
+    margin-bottom: 30px;
+    border-radius: 12px;
+}
+
+.form-container {
+    display: flex;
+    flex-direction: column;
+    gap: 20px;
+    width: 500px;
+}
+
+.columns {
+    display: flex;
+    flex-direction: row;
+    gap: 30px;
+    justify-content: center;
+}
+
+.column {
+    display: flex;
+    flex-direction: column;
+    gap: 5px; 
+    flex: 1; 
+}
+
+.input-field {
+    padding: 12px;
+    border: 2px solid #2c425a;
+    border-radius: 8px;
+    font-size: 16px;
+    outline: none;
+}
+
+.input-field:focus {
+    border-color: #56708c;
+    background-color: #f9f9f9;
+}
+.page-body {
+        background: #a2c2de;
+        padding: 20px;
+        border-radius: 12px;    
+        max-width: 1000px; 
+        min-height: 400px; 
+    
+  
+    }
+
+.layout-container {
+    background-color: #2c425a; 
+    height: 100vh;           
+    display: flex;
+    align-items: center;     
+    justify-content: center;  
+    flex-direction: column;
+}
+.btn {
+    background-color: #2c425a;
+    color: white;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: 0.3s;
+    text-decoration: none;
+    text-align: center;
+    width:500px;
+}
+
+.btn:hover {
+    background-color: #56708c;
+    color: #f0e1b4;
+}
+.line {
+    display: flex;
+    flex-direction: row;
+    justify-content: center; 
+    gap: 30px; 
+    margin-top: 20px; 
+}
+.form-label {
+    font-size: 16px;
+    font-weight: bold;
+    color: #2c425a;
+    text-align: left;        
+    margin-bottom: -8px;     
+    margin-left: 4px;
+    letter-spacing: 0.5px;
+}
+
+</style>

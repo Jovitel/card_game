@@ -1,0 +1,11 @@
+{
+  "Version": 1,
+  "Hash": "FM6LLbFp1x+n3IqnTNva9VyFqns4sSYDCZOVLx2Dvkk=",
+  "Source": "CardGame.Api",
+  "BasePath": "_content/CardGame.Api",
+  "Mode": "Default",
+  "ManifestType": "Build",
+  "ReferencedProjectsConfiguration": [],
+  "DiscoveryPatterns": [],
+  "Assets": []
+}
