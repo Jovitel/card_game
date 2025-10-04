@@ -8,8 +8,15 @@ dotnet new blazorwasm -o card_game
 ```
 
 After creating the project, you can run it locally and see the changes while editing with:
+
+One terminal: (Opens web)
 ```
-cd card_game
+cd card_game/Blazor
+dotnet watch run
+```
+Another terminal: (Opens Swagger)
+```
+cd card_game/CardGame.Api
 dotnet watch run
 ```
 ## Project structure
