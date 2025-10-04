@@ -4,17 +4,109 @@
     <div class="container">
         <div class="top-line">
             <img src="images/durnius.png" alt="Žaidimo nuotrauka" class="top-image" />
-            <NavLink class="btn" href="/start">Exit</NavLink>
         </div>
+
+        <NavLink class="btn" href="/start">Exit</NavLink>
+
         <div class="rules-square">
-            <h2>Game Rules</h2>
+            <h2><strong>Help Page</strong></h2>
+            
+                <p>
+                    Welcome to online game <strong>Durnius</strong>!  
+                    Here you will find everything you need to know about navigating the website, creating or joining games, and learning the rules of Durak.
+                </p>
+            
+        </div>
+
+        <div class="rules-square">
+            <h2><strong>Getting Started</strong></h2>
+            
             <ul>
-                <li class="spade" data-suit="♠">Each player is dealt 6 cards.</li>
-                <li class="heart" data-suit="♥">The trump suit is determined randomly.</li>
-                <li class="diamond" data-suit="♦">Attack and defense happen in turns.</li>
-                <li class="club" data-suit="♣">Players must beat attacking cards with higher or trump cards.</li>
-                <li class="spade" data-suit="♠">If unable to beat, pick up the cards.</li>
-                <li class="heart" data-suit="♥">First to get rid of all cards wins.</li>
+                <li class="spade" data-suit="♠"><strong>Register</strong>: Create a new account with your email and password.</li>
+                <li class="heart" data-suit="♥"><strong>Sign In</strong>: Log in with your existing account.</li>
+            </ul>
+
+            <p>Once signed in, you will see your <strong>Profile</strong>, where you can check:</p>
+
+            <ul>
+                <li class="club" data-suit="♣"><strong>Points</strong>: Earned from games you play and win.</li>
+                <li class="diamond" data-suit="♦"><strong>Level</strong>: Your progression in the game.</li>
+                <li class="spade" data-suit="♠"><strong>Settings</strong>: Adjust preferences like sound, notifications, and account info.</li>
+                <li class="heart" data-suit="♥"><strong>Leaderboards</strong>: See how you rank against other players.</li>
+                <li class="club" data-suit="♣"><strong>Friends List</strong>: Add and manage friends to play with.</li>
+            </ul>
+
+        </div>
+
+        <div class="rules-square">
+            <h2><strong>Starting a Game</strong></h2>
+
+            <p>To start your own game, click <strong>Start Game</strong>. You can choose from the following modes:</p>
+            
+            <ul>
+                <li class="diamond" data-suit="♦"><strong>1 vs 1</strong>: Play against another player.</li>
+                <li class="spade" data-suit="♠"><strong>1 vs Bot</strong>: Play against the computer.</li>
+                <li class="heart" data-suit="♥"><strong>1 vs Multiplayer</strong>: Host a game with multiple human players.</li>
+                <li class="club" data-suit="♣"><strong>1 vs Multi Bots</strong>: Play against several computer opponents.</li>
+            </ul>
+            <p>If you choose to start a multiplayer game:</p>
+
+            <ul> 
+                <li class="diamond" data-suit="♦">You will be given a <strong>Game Code</strong>.</li> 
+                <li class="spade" data-suit="♠">Share this code with friends so they can join from the <strong>Join Game</strong> page.</li> 
+                <li class="heart" data-suit="♥">You will see how many players have joined in real time.</li> 
+                <li class="club" data-suit="♣">Once everyone is ready, click <strong>Start Game</strong> to begin.</li> 
+            </ul>
+        </div>
+
+        <div class="rules-square">
+            <h2><strong>Joining a Game</strong></h2>
+            <ul>
+                <li class="diamond" data-suit="♦">Go to the <strong>Join Game</strong> page.</li>
+                <li class="spade" data-suit="♠">Enter the <strong>Game Code</strong> your friend shared with you.</li>
+                <li class="heart" data-suit="♥">Wait until the host starts the game.</li>
+            </ul>
+        </div>
+
+
+        <div class="rules-square">
+            <h2><strong>Game Rules</strong></h2>
+
+            <h3>Basics</h3>
+
+            <ul>
+                <li class="club" data-suit="♣">A standard 52-card deck is used (2 through Ace).</li>
+                <li class="diamond" data-suit="♦">The <strong>trump suit</strong> is chosen at the start of the game by revealing one card from the deck.</li>
+            </ul>
+
+            <h3>Attacking &amp; Defending</h3>
+            <ul>
+                <li class="spade" data-suit="♠">The <strong>attacker</strong> plays one or more cards of the same rank.</li>
+                <li class="heart" data-suit="♥">The <strong>defender</strong> must beat each card using a higher card of the same suit or any trump card. </li>
+                <li class="club" data-suit="♣">If the defender cannot beat all cards, they must <strong>pick up</strong> the played cards.</li>
+            </ul>
+
+            <h3>Passing</h3>
+            <ul>
+                <li class="diamond" data-suit="♦">If the defender beats the cards, the turn may continue: other players (or the attacker) can add more cards of the same rank as already played cards. The defender must beat them too.</li>
+                <li class="spade" data-suit="♠">When the defender succeeds in beating all cards, the discarded cards are removed from the game.</li>
+            </ul>
+
+            <h3>Objective</h3>
+            <ul>
+                <li class="heart" data-suit="♥">Players draw cards from the deck until it is empty.</li>
+                <li class="club" data-suit="♣">The game continues until one player is left holding cards.</li>
+                <li class="diamond" data-suit="♦">That player is the <strong>Durak</strong> ("the fool").</li>
+            </ul>
+
+        </div>
+
+        <div class="rules-square">
+            <h2><strong>Tips for New Players</strong></h2>
+            <ul>
+                <li class="spade" data-suit="♠">Watch your trump cards carefully as they are your strongest defense.</li>
+                <li class="heart" data-suit="♥">Do not waste high cards too early unless necessary.</li>
+                <li class="club" data-suit="♣">Use the friend system to play with people you know.</li>
             </ul>
         </div>
     </div>
@@ -32,7 +124,7 @@
 }
 
 .container {
-    background: #a2c2de;
+    background-color: rgba(0, 0, 0, 0.2);
     width: 98%;
     max-width: 1300px;
     min-height: 500px;
@@ -45,9 +137,11 @@
 }
 .top-line {
     display: flex;
-    justify-content: space-between;
+    justify-content: center;  
     align-items: center;
     width: 100%;
+    margin-bottom: 20px;
+    position: relative;
 }
 
 .top-image {
@@ -68,7 +162,11 @@
     transition: 0.3s;
     text-decoration: none;
     text-align: center;
-    min-width: 180px;
+    position: fixed;
+    bottom: 20px;
+    right: 5%;
+    min-width: 120px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.4);
 }
 
 .btn:hover {
@@ -76,33 +174,34 @@
     color: #f0e1b4;
 }
 .rules-square {
-    width: 570px;
-    min-height: 400px;
-    background-color: #ffffffff;
-    color: #2c425a;
+    width: 80%;
+    min-height: 200px;
+    background-color: rgba(26,39,54, 0.3);
+    color: white;
     border-radius: 14px;
-    border: 5px solid #2c425a;
     padding: 20px;
     display: flex;
     flex-direction: column;
-    align-items: center;
-    justify-content: center;
+    align-items: flex-start;  /* align children to the left */
+    justify-content: flex-start;
     text-align: left;
     box-shadow: 0 4px 10px rgba(0,0,0,0.3);
-    margin-bottom: 10px;
+    margin-bottom: 20px;
 }
 
-.rules-square h2 {
+.rules-square h2, .rules-square h3 {
+    width: 100%;
     text-align: center;
     margin-bottom: 20px;
 }
+
 
 .rules-square ul {
     list-style: none;
     padding: 0;
 }
 
-.rules-square li {
+.rules-square li, .rules-square p {
     font-size: 18px;
     margin-bottom: 10px;
 }
