@@ -1,10 +1,13 @@
 @page "/login"
 @layout MainLayout
 @inject NavigationManager Nav
+@inject HttpClient Http
 
 @code {
     private string email = string.Empty;
     private string password = string.Empty;
+    private bool showErrors = false;
+    private string loginError = string.Empty;
 
     private bool IsFormValid =>
         !string.IsNullOrWhiteSpace(email) &&
@@ -12,16 +15,33 @@
         !string.IsNullOrWhiteSpace(password) &&
         password.Length >= 6;
 
-
- private void PerformLogin()
+    private async Task PerformLogin()
     {
-        if (IsFormValid)
+        showErrors = true; // klaidos pasimato tik paspaudus mygtuką
+
+        if (!IsFormValid) return;
+
+        var loginData = new { Email = email, Password = password };
+        var response = await Http.PostAsJsonAsync("http://localhost:5070/login", loginData);
+
+        if (response.IsSuccessStatusCode)
         {
             Nav.NavigateTo("/start");
         }
+        else
+        {
+            loginError = "Invalid email or password.";
+        }
     }
-}
 
+    private string EmailError =>
+        showErrors && string.IsNullOrWhiteSpace(email) ? "E-mail is required." :
+        (showErrors && !email.Contains("@") ? "Email must contain '@'." : "");
+
+    private string PasswordError =>
+        showErrors && string.IsNullOrWhiteSpace(password) ? "Password is required." :
+        (showErrors && password.Length < 6 ? "Password must be at least 6 characters." : "");
+}
 
 <div class="index-container">
 
@@ -31,19 +51,36 @@
         <div class="column">
             <label for="email" class="form-label">E-mail</label>
             <input type="email" @bind="email" placeholder="E-mail" class="input-field" />
-
+            <small class="error">@EmailError</small>
+        
             <label for="password" class="form-label">Password</label>
-            <input type="password"  @bind="password" placeholder="Password" class="input-field" />
+            <input type="password" @bind="password" placeholder="Password" class="input-field" />
+            <small class="error">@PasswordError</small>
+             @if (!string.IsNullOrEmpty(loginError))
+                    {
+                        <small class="error error-global">@loginError</small>
+                    }
         </div>
         <div class="line">
             <NavLink class="btn" href="/">Back</NavLink>
-            <button class="btn" @onclick="PerformLogin" disabled="@(IsFormValid ? false : true)">Log in</button>
+            <button class="btn" @onclick="PerformLogin">Log in</button>
         </div>
     </div>
-
 </div>
 
+
 <style>
+.error-global {
+    font-size: 14px;
+    font-weight: bold; 
+    text-align: center;
+    color: darkred;
+}
+.error {
+    color: red;
+    font-size: 12px;
+    text-align: left;
+}
 .index-container {
     display: flex;
     flex-direction: column;
@@ -70,7 +107,7 @@
 .column {
     display: flex;
     flex-direction: column;
-    gap: 15px;
+    gap: 5px;
     flex: 1;
 }
 
