@@ -20,7 +20,7 @@ cd card_game/CardGame.Api
 dotnet watch run
 ```
 ## Project structure
-card_game/ – Root folder of the Blazor project
+**card_game/ – Root folder of the Blazor project**
 * CardGame.sln – Solution file referencing all projects
 ### Folders
 **Blazor/**
