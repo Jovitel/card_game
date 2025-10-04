@@ -6,7 +6,7 @@ namespace card_game.GameLogic
         {
         }
 
-        // Boto kortos pasirinkimo logika (labai parsata siam kartui)
+        // Boto kortos pasirinkimo logika (labai paprsata siam kartui)
         public Card? ChooseCard(Card? attackingCard = null)
         {
             if (Hand.Count == 0)
