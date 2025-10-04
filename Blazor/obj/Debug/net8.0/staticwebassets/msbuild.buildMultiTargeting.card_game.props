@@ -1,3 +1,0 @@
-﻿<Project>
-  <Import Project="..\build\card_game.props" />
-</Project>
