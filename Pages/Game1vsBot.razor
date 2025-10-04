@@ -1,4 +1,116 @@
 @page "/game/1vsbot"
 @layout MainLayout
 
-<h2>Game Mode: 1 vs Bot</h2>
+@using card_game.GameLogic
+
+<h2>Durak game mode: 1 vs Bot</h2>
+
+@if (game != null && humanPlayer != null && bot != null)
+{
+
+    
+    <h4>Kozeris: <span style="color:red">@game.State.TrumpSuit</span></h4>
+
+    <h4>Jūsų kortos</h4>
+    <div class="card-row">
+        @foreach (var card in humanPlayer.Hand)
+        {
+            <button class="card-btn" @onclick="() => Attack(card)">
+                @card
+            </button>
+        }
+    </div>
+
+    <h4>Bot kortų skaičius: @bot.Hand.Count</h4>
+
+    <h4>Stalas</h4>
+    @if (game.State.TableCards.Count == 0)
+    {
+        <p>Stalas tuščias.</p>
+    }
+    else
+    {
+        <ul>
+            @foreach (var pair in game.State.TableCards)
+            {
+                <li>@pair.Key vs @pair.Value</li>
+            }
+        </ul>
+    }
+
+    @if (game.State.IsGameOver)
+    {
+        <p><strong>Žaidimas baigtas!</strong></p>
+    }
+}
+else
+{
+    <button class="btn btn-primary" @onclick="StartGame">Pradėti žaidimą</button>
+}
+
+@code {
+    private DurakGameEngine? game;
+    private Player? humanPlayer;
+    private BotPlayer? bot;
+
+    private void StartGame()
+    {
+        humanPlayer = new Player("Žaidėjas");
+        bot = new BotPlayer("Bot");
+
+        var players = new List<Player> { humanPlayer, bot };
+        game = new DurakGameEngine(players);
+    }
+
+    private void Attack(Card card)
+    {
+        if (game == null || humanPlayer == null || bot == null)
+            return;
+
+        if (!game.State.IsGameOver && game.Attack(humanPlayer, card))
+        {
+            BotResponds();
+        }
+    }
+
+    private void BotResponds()
+    {
+        var table = game!.State.TableCards;
+        var attackCard = table.Keys.LastOrDefault();
+
+        if (attackCard == null)
+            return;
+
+        var defendCard = bot!.ChooseCard(attackCard);
+
+        if (defendCard != null)
+        {
+            game.Defend(bot, attackCard, defendCard);
+        }
+        else
+        {
+            // Botas paima kortas
+            game.EndTurn(defenderPickedUp: true);
+        }
+
+        StateHasChanged();
+    }
+}
+
+<style>
+.card-row {
+    display: flex;
+    flex-wrap: wrap;
+    gap: 10px;
+    margin-bottom: 20px;
+}
+
+.card-btn {
+    padding: 10px;
+    font-size: 16px;
+    background-color: white;
+    border: 2px solid black;
+    border-radius: 5px;
+    cursor: pointer;
+}
+</style>
