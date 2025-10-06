@@ -36,6 +36,7 @@ dotnet watch run
   * css/ – Global CSS files
 * Pages/ – Razor pages (views) for the application
 
+
 **CardGame.Api/**
 * Backend API project
 * Handles data access, authentication, and business logic
@@ -51,3 +52,12 @@ dotnet watch run
 * Models/ – Data models shared across projects
 * CardGame.Shared.csproj – Project file with dependencies
 
+
+**GameLogic/**
+* New folder added to the Blazor project to store all core Durak game logic.
+* Contains backend-like logic files directly accessible by the Blazor UI:
+  * Card.cs – Defines suits and card values
+  * Deck.cs – Handles deck creation, shuffling, and card drawing
+  * Player.cs & BotPlayer.cs – Define player and bot behavior
+  * DurakGameEngine.cs – Main gameplay logic
+  * GameState.cs – Tracks the game’s current state (deck, players, table)

@@ -1,103 +1,198 @@
-@page "/game/1vsbot"
-@layout MainLayout
+@page "/game/1vsbot" 
+@layout MainLayout 
+@using card_game.GameLogic 
 
-@using card_game.GameLogic
 
 <h2>Durak game mode: 1 vs Bot</h2>
 
-@if (game != null && humanPlayer != null && bot != null)
+@if (game != null && humanPlayer != null && bot != null) // tik jei žaidimas ir žaidėjai yra inicializuoti
 {
 
-    
-    <h4>Kozeris: <span style="color:red">@game.State.TrumpSuit</span></h4>
+ // išsaugo dabartinė žaidimo būsena
+    var state = game!.State; 
 
-    <h4>Jūsų kortos</h4>
-    <div class="card-row">
-        @foreach (var card in humanPlayer.Hand)
+ // nustato, ar žaidėjas gali baigti ėjimą
+    var canEndTurn = game.CanEndTurn(humanPlayer);
+
+    <h4>Kozeris: <span style="color:red">@state.TrumpSuit</span></h4>  // rodo kozerio tipas (suit)
+
+    <h4 class="turn-info">@game.GetTurnText(humanPlayer)</h4>// rodo kieno dabar ėjimas (tekstas)
+
+    <h4>Jūsų kortos</h4>// rodo žaidėjo kortų sąrašas
+    
+
+    <div class="card-row"> 
+        @foreach (var card in humanPlayer.Hand) // eina per visas žaidėjo kortas
         {
-            <button class="card-btn" @onclick="() => Attack(card)">
+            bool canPlay = humanPlayer.CanPlayCard(game, card);  // tikrina, ar ši korta gali būti sužaidžiama
+            
+            // kiekviena korta rodoma kaip mygtukas; paspaudus kviečiama funkcija PlayCard
+            <button class="card-btn"
+                    disabled="@(canPlay ? false : true)"
+                    @onclick="() => PlayCard(card)">
                 @card
             </button>
+            
+        }
+    </div>
+    // mygtukas leidžia žaidėjui baigti ėjimą, jei jis leidžiamas
+    <button class="btn btn-end-turn" @onclick="EndTurn" disabled="@(!canEndTurn)">
+        Baigti ėjimą
+    </button>
+
+    <h4>Bot'o kortos (testavimui):</h4> // rodoma boto ranka (testavimo tikslais)
+
+    <div class="card-row">
+        @foreach (var card in bot.Hand)
+        {
+            // einama per visas boto kortas
+            <div class="card-btn">@card</div>
+            // rodomos kaip tekstas
         }
     </div>
 
-    <h4>Bot kortų skaičius: @bot.Hand.Count</h4>
+    <h4>Stalas</h4> // kortos, kurios yra padėtos ant stalo 
 
-    <h4>Stalas</h4>
-    @if (game.State.TableCards.Count == 0)
+    @if (state?.TableCards == null || state.TableCards.Count == 0) // jei ant stalo nėra kortų
     {
         <p>Stalas tuščias.</p>
     }
-    else
+    else // jei kortos yra ant stalo
     {
-        <ul>
-            @foreach (var pair in game.State.TableCards)
+        <div class="table-cards">
+            @foreach (var pair in state.TableCards)
             {
-                <li>@pair.Key vs @pair.Value</li>
+                // rodoma atakos ir gynybos kortų pora
+                <div class="table-pair">
+                    <div class="attack-card">Ataka: @pair.Key</div>
+                    <div class="defend-card">
+                        @(pair.Value != null ? $"Gynyba: {pair.Value}" : "—")
+                    </div>
+                </div>
             }
-        </ul>
+        </div>
     }
 
-    @if (game.State.IsGameOver)
+    @if (state?.IsGameOver == true)// jei žaidimas baigtas
     {
         <p><strong>Žaidimas baigtas!</strong></p>
     }
 }
-else
+else // jei žaidimas dar nepradėtas
 {
     <button class="btn btn-primary" @onclick="StartGame">Pradėti žaidimą</button>
 }
 
 @code {
-    private DurakGameEngine? game;
-    private Player? humanPlayer;
-    private BotPlayer? bot;
+    private DurakGameEngine? game;  // žaidimo variklio objektas
 
-    private void StartGame()
+    private Player? humanPlayer;  // žmogaus žaidėjas
+
+    private BotPlayer? bot;  // boto žaidėjas
+
+    // funkcija, kuri paleidžia žaidima
+    private async Task StartGame()
     {
-        humanPlayer = new Player("Žaidėjas");
-        bot = new BotPlayer("Bot");
+        humanPlayer = new Player("Žaidėjas"); // sukuriamas žmogaus žaidėjas
 
-        var players = new List<Player> { humanPlayer, bot };
-        game = new DurakGameEngine(players);
+        bot = new BotPlayer("Bot");// sukuriamas bot žaidėjas
+
+        // sukuriamas naujas žaidimo variklis su abiem žaidėjais
+        game = new DurakGameEngine(new List<Player> { humanPlayer, bot });
+
+        await RefreshUI();  // atnaujinamas ekranas
+
+        await game.RunBotTurn(RefreshUI); // kviečiamas boto ėjimas, jei jam priklauso
     }
 
-    private void Attack(Card card)
+    // funkcija, kuri vykdoma kai žaidėjas paspaudžia ant kortos
+    private async Task PlayCard(Card card)
     {
-        if (game == null || humanPlayer == null || bot == null)
+        // jei žaidimas arba žaidėjas neegzistuoja, funkcija nutraukiama
+        if (game == null || humanPlayer == null)
             return;
 
-        if (!game.State.IsGameOver && game.Attack(humanPlayer, card))
+        // jei žmogus yra atakuotojas
+        if (game.State.Attacker == humanPlayer)
         {
-            BotResponds();
+            // bandoma atlikti ataką su pasirinkta korta
+            if (game.Attack(humanPlayer, card))
+            {
+                // atnaujinamas vaizdas
+                await RefreshUI();
+
+                // trumpa pauzė
+                await Task.Delay(800);
+
+                // leidžiama botui atlikti savo ėjimą
+                await game.RunBotTurn(RefreshUI);
+            }
         }
+        // jei žmogus yra gynėjas
+        else if (game.State.Defender == humanPlayer)
+        {
+            // randama paskutinė atakuojanti korta ant stalo
+            var attackCard = game.State.TableCards.FirstOrDefault(p => p.Value == null).Key;
+
+            // jei galima gintis šia korta
+            if (attackCard != null && game.Defend(humanPlayer, attackCard, card))
+            {
+                // atnaujinamas ekranas
+                await RefreshUI();
+
+                // trumpa pauzė
+                await Task.Delay(800);
+
+                // jei visos atakos yra atmuštos
+                if (game.State.TableCards.All(p => p.Value != null))
+                {
+                    // jei atakavo botas, ėjimas užbaigiamas automatiškai
+                    if (game.State.Attacker.IsBot)
+                    {
+                        await game.EndTurnWithDelay(false, RefreshUI);
+                        await game.RunBotTurn(RefreshUI);
+                    }
+                    else
+                    {
+                        // jei atakavo žaidėjas, paliekama galimybė pridėti dar kortų
+                        await RefreshUI();
+                        // ėjimas nesibaigia automatiškai
+                    }
+                }
+            }
+        }
+
+        // atnaujinamas ekranas po bet kokio veiksmo
+        await RefreshUI();
     }
 
-    private void BotResponds()
+    // funkcija, kai žaidėjas paspaudžia mygtuką 'baigti ėjimą'
+    private async Task EndTurn()
     {
-        var table = game!.State.TableCards;
-        var attackCard = table.Keys.LastOrDefault();
-
-        if (attackCard == null)
+        // jei žaidimas neegzistuoja, funkcija nutraukiama
+        if (game == null)
             return;
 
-        var defendCard = bot!.ChooseCard(attackCard);
+        // užbaigiamas ėjimas
+        await game.EndTurnWithDelay(false, RefreshUI);
 
-        if (defendCard != null)
-        {
-            game.Defend(bot, attackCard, defendCard);
-        }
-        else
-        {
-            // Botas paima kortas
-            game.EndTurn(defenderPickedUp: true);
-        }
+        // leidžiama botui pradėti savo ėjimą
+        await game.RunBotTurn(RefreshUI);
+    }
 
-        StateHasChanged();
+    // funkcija, kuri atnaujina vartotojo sąsają
+    private Task RefreshUI()
+    {
+        // pranešama Blazor, kad reikia atnaujinti vaizdą
+        InvokeAsync(StateHasChanged);
+
+        // grąžinamas užbaigtas uždavinys (be laukimo)
+        return Task.CompletedTask;
     }
 }
 
 <style>
+/* kortų eilės stilius */
 .card-row {
     display: flex;
     flex-wrap: wrap;
@@ -105,6 +200,7 @@ else
     margin-bottom: 20px;
 }
 
+/* kortos kaip mygtuko stilius */
 .card-btn {
     padding: 10px;
     font-size: 16px;
@@ -112,5 +208,40 @@ else
     border: 2px solid black;
     border-radius: 5px;
     cursor: pointer;
+}
+
+/* išjungto mygtuko išvaizda */
+.card-btn:disabled {
+    background-color: #ddd;
+    color: #aaa;
+    cursor: not-allowed;
+}
+
+/* mygtuko „Baigti ėjimą“ stilius */
+.btn-end-turn {
+    margin: 20px 0;
+    padding: 10px 20px;
+    font-weight: bold;
+    background-color: #2c425a;
+    color: white;
+    border-radius: 8px;
+    border: none;
+    cursor: pointer;
+}
+
+/* išjungtas „Baigti ėjimą“ mygtukas */
+.btn-end-turn:disabled {
+    background-color: #888;
+    cursor: not-allowed;
+}
+
+/* informacijos apie ėjimą stilius */
+.turn-info {
+    font-size: 18px;
+    font-weight: bold;
+    margin: 10px 0;
+    padding: 10px;
+    border-radius: 8px;
+    background-color: #f2f2f2;
 }
 </style>
