@@ -7,6 +7,11 @@
     private User newUser = new User();
     private string repeatPassword = "";
     private bool showErrors = false;
+
+    // Serverio klaidos pagal laukus
+    private string userNameServerError = "";
+    private string emailServerError = "";
+
     private bool CanRegister =>
         !string.IsNullOrWhiteSpace(newUser.UserName) &&
         !string.IsNullOrWhiteSpace(newUser.Email) &&
@@ -15,26 +20,70 @@
         newUser.Password.Length >= 6 &&
         newUser.Password == repeatPassword;
 
-    
     private async Task RegisterUser()
+{
+    showErrors = true;
+    userNameServerError = "";
+    emailServerError = "";
+
+    if (!CanRegister) return;
+
+    var response = await Http.PostAsJsonAsync("users", newUser);
+
+    if (response.IsSuccessStatusCode)
     {
-        showErrors = true; // rodom klaidas tik po bandymo registruotis
-
-        if (!CanRegister) return;
-
-        var response = await Http.PostAsJsonAsync("users", newUser);
-
-        if (response.IsSuccessStatusCode)
-            Nav.NavigateTo("/start");
-        else
-            Console.WriteLine(await response.Content.ReadAsStringAsync());
+        Nav.NavigateTo("/start");
     }
+    else
+    {
+        try
+        {
+            var errorJson = await response.Content.ReadFromJsonAsync<Dictionary<string, string>>();
+            if (errorJson != null && errorJson.ContainsKey("field") && errorJson.ContainsKey("message"))
+            {
+                var field = errorJson["field"];
+                var message = errorJson["message"];
+
+                if (field.Equals("Email", StringComparison.OrdinalIgnoreCase))
+                    emailServerError = message;
+                else if (field.Equals("UserName", StringComparison.OrdinalIgnoreCase))
+                    userNameServerError = message;
+            }
+            else
+            {
+                // Fallback, jei netikėta klaida
+                userNameServerError = "Registration failed. Please try again.";
+            }
+        }
+        catch
+        {
+            userNameServerError = "Unexpected server response.";
+        }
+
+        StateHasChanged();
+    }
+}
+    // Kai vartotojas rašo į lauką, serverio klaida paslepiama
+    private void OnUserNameChanged(ChangeEventArgs e)
+    {
+        newUser.UserName = e.Value?.ToString() ?? "";
+        userNameServerError = "";
+    }
+
+    private void OnEmailChanged(ChangeEventArgs e)
+    {
+        newUser.Email = e.Value?.ToString() ?? "";
+        emailServerError = "";
+    }
+
     private string UserNameError =>
-        showErrors && string.IsNullOrWhiteSpace(newUser.UserName) ? "User name is required." : "";
+        !string.IsNullOrEmpty(userNameServerError) ? userNameServerError :
+        (showErrors && string.IsNullOrWhiteSpace(newUser.UserName) ? "User name is required." : "");
 
     private string EmailError =>
-        showErrors && string.IsNullOrWhiteSpace(newUser.Email) ? "Email is required." :
-        (showErrors && !newUser.Email.Contains("@") ? "Email must contain '@'." : "");
+        !string.IsNullOrEmpty(emailServerError) ? emailServerError :
+        (showErrors && string.IsNullOrWhiteSpace(newUser.Email) ? "Email is required." :
+        (showErrors && !newUser.Email.Contains("@") ? "Email must contain '@'." : ""));
 
     private string PasswordError =>
         showErrors && string.IsNullOrWhiteSpace(newUser.Password) ? "Password is required." :
@@ -42,38 +91,41 @@
 
     private string RepeatPasswordError =>
         showErrors && newUser.Password != repeatPassword ? "Passwords do not match." : "";
+}
 
-    }
 <div class="index-container">
 
     <img src="images/durnius.png" alt="Žaidimo nuotrauka" class="top-image" />
 
     <div class="form-container">
-    <div class="columns">
-        <div class="column">
-            <label class="form-label">User name</label>
-            <input type="text" class="input-field" placeholder="User name" @bind="newUser.UserName" />
-            <small class="error">@UserNameError</small>
+        <div class="columns">
+            <div class="column">
+                <label class="form-label">User name</label>
+                <input type="text" class="input-field" placeholder="User name"
+                       value="@newUser.UserName" @oninput="OnUserNameChanged" />
+                <small class="error">@UserNameError</small>
 
-            <label class="form-label">E-mail</label>
-            <input type="email" class="input-field" placeholder="E-mail" @bind="newUser.Email"/>
-            <small class="error">@EmailError</small>
+                <label class="form-label">E-mail</label>
+                <input type="email" class="input-field" placeholder="E-mail"
+                       value="@newUser.Email" @oninput="OnEmailChanged" />
+                <small class="error">@EmailError</small>
+            </div>
+            <div class="column">
+                <label class="form-label">Password</label>
+                <input type="password" class="input-field" placeholder="Password" @bind="newUser.Password"/>
+                <small class="error">@PasswordError</small>
+
+                <label class="form-label">Repeat password</label>
+                <input type="password" class="input-field" placeholder="Repeat password" @bind="repeatPassword"/>
+                <small class="error">@RepeatPasswordError</small>
+            </div>
         </div>
-        <div class="column">
-            <label class="form-label">Password</label>
-            <input type="password" class="input-field" placeholder="Password" @bind="newUser.Password"/>
-            <small class="error">@PasswordError</small>
 
-            <label class="form-label">Repeat password</label>
-            <input type="password" class="input-field" placeholder="Repeat password" @bind="repeatPassword"/>
-            <small class="error">@RepeatPasswordError</small>
+        <div class="line">
+            <NavLink class="btn" href="/">Back</NavLink>
+            <button class="btn" @onclick="RegisterUser">Register</button>
         </div>
     </div>
-    <div class="line">
-        <NavLink class="btn" href="/">Back</NavLink>
-        <button class="btn" @onclick="RegisterUser">Register</button>
-    </div>
-</div>
 
 </div>
 
@@ -184,7 +236,7 @@
     color: #2c425a;
     text-align: left;        
     margin-bottom: -8px;     
-    margin-left: 4px;
+    margin-left: 4px;   
     letter-spacing: 0.5px;
 }
 

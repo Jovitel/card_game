@@ -36,10 +36,22 @@ app.MapGet("/", () => "CardGame API veikia!");
 // POST registracija
 app.MapPost("/users", async (User user, UserDbContext db) =>
 {
+    // Patikrinam ar jau yra toks email
+    var existingEmail = await db.Users.FirstOrDefaultAsync(u => u.Email == user.Email);
+    if (existingEmail != null)
+        return Results.BadRequest(new { field = "Email", message = "This email is already registered." });
+
+    // Patikrinam ar jau yra toks vartotojo vardas
+    var existingUserName = await db.Users.FirstOrDefaultAsync(u => u.UserName == user.UserName);
+    if (existingUserName != null)
+        return Results.BadRequest(new { field = "UserName", message = "This username is already taken." });
+
     db.Users.Add(user);
     await db.SaveChangesAsync();
+
     return Results.Created($"/users/{user.UserName}", user);
 });
+
 
 // GET visiems vartotojams
 app.MapGet("/users", async (UserDbContext db) =>
