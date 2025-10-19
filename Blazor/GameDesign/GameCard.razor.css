@@ -1,0 +1,85 @@
+/* ==== Bendra kortos išvaizda ==== */
+.card {
+    width: 100px;
+    height: 150px;
+    border-radius: 5px;
+    border: 2px solid #f0e1b4;
+    background-color: white;
+    box-shadow: 0 2px 9px rgba(0, 0, 0, 0.2);
+    display: flex;
+    flex-direction: column;
+    justify-content: space-between;
+    padding: 6px;
+    cursor: pointer;
+    transition: transform 0.15s ease, box-shadow 0.15s ease, opacity 0.3s ease;
+    animation: cardEnter 0.5s ease forwards;
+}
+
+
+
+.card:hover {
+    transform: translateY(-6px);
+    box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+}
+
+.card.disabled {
+    cursor: not-allowed;
+    box-shadow: none;
+}
+
+.card-top,
+.card-bottom {
+    display: flex;
+    justify-content: space-between;
+    font-size: 18px;
+    font-weight: bold;
+}
+
+.card-center {
+    text-align: center;
+    font-size: 30px;
+}
+
+.card.hearts,
+.card.diamonds {
+    color: #d22; /* raudonos kortos */
+}
+
+.card.clubs,
+.card.spades {
+    color: #000; /* juodos kortos */
+}
+
+.card-value {
+    font-size: 18px;
+}
+
+.card-suit {
+    font-size: 20px;
+}
+
+/* ==== Kortų eilės (rankos) išdėstymas ==== */
+.card-row {
+    display: flex;
+    justify-content: center;
+    align-items: flex-end;
+    gap: 0;
+    position: relative;
+    height: 160px;
+    margin-top: 20px;
+    perspective: 600px;
+}
+
+/* automatinis vėduoklės efektas su CSS kintamaisiais */
+.card-row .card {
+    position: relative;
+    transform-origin: bottom center;
+    margin-left: -45px;
+    transition: transform 0.3s ease, z-index 0.2s ease;
+   
+}
+
+.card-row .card:hover {
+    transform: translateY(-25px) scale(1.05) rotate(0deg);
+    z-index: 10;
+}

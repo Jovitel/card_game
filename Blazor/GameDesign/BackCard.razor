@@ -1,0 +1,27 @@
+@namespace card_game.GameDesign
+
+<div class="card-back"></div>
+
+<style>
+.card-back {
+    width: 100px;
+    height: 150px;
+    border-radius: 5px;
+    border: 5px solid #f0e1b4;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.25);
+    background-color: white;
+    
+    /* smulkesni rombai */
+    background-image: 
+        linear-gradient(45deg, #c41e3a 25%, transparent 25%), 
+        linear-gradient(-45deg, #c41e3a 25%, transparent 25%), 
+        linear-gradient(45deg, transparent 75%, #c41e3a 75%), 
+        linear-gradient(-45deg, transparent 75%, #c41e3a 75%);
+    background-size: 5px 5px; 
+    background-position: 0 0, 0 5px, 5px -5px, -5px 0px;
+
+    /* kad korta būtų viršuje DeckView ar kitur */
+    position: relative;
+    z-index: 12;
+}
+</style>

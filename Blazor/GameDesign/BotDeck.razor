@@ -1,0 +1,45 @@
+@namespace card_game.GameDesign
+@using card_game.GameLogic
+
+<div class="card-row bot-deck">
+    @for (int i = 0; i < Bot.Hand.Count; i++)
+    {
+        <div class="card" style="--index:@i;">
+            <BackCard />
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter]
+    public BotPlayer Bot { get; set; } = default!;
+}
+<style>
+.bot-deck {
+    gap: 0;
+    height: 160px;
+    margin-top: 20px;
+    perspective: 600px;
+    position: relative;
+}
+
+/* automatinis vėduoklės efektas su CSS kintamaisiais */
+.bot-deck .card {
+    position: relative;
+    transform-origin: bottom center;
+    margin-left: -80px; /* kiek kortos persidengia */
+    transition: transform 0.3s ease, z-index 0.2s ease;
+}
+
+
+
+.bot-deck .card-count {
+    position: absolute;
+    bottom: -20px;
+    left: 50%;
+    transform: translateX(-50%);
+    color: white;
+    font-weight: bold;
+    font-size: 18px;
+}
+</style>

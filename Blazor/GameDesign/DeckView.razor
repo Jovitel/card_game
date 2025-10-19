@@ -1,0 +1,23 @@
+@using card_game.GameLogic
+@using card_game.GameDesign
+
+<div class="deck-container">
+    @* Jei kaladėje liko kortų, rodomas užverstas fonas *@
+    @if (RemainingCardsCount > 0)
+    {
+        <BackCard />
+    }
+
+    @* Kozerio korta *@
+    @if (TrumpCard != null)
+    {
+        <div class="trump-card">
+            <GameCard Card="TrumpCard" Disabled="true" />
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public int RemainingCardsCount { get; set; }
+    [Parameter] public Card? TrumpCard { get; set; }
+}

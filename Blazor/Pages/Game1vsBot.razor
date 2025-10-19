@@ -1,88 +1,114 @@
 @page "/game/1vsbot" 
 @layout MainLayout 
 @using card_game.GameLogic 
-
-
-<h2>Durak game mode: 1 vs Bot</h2>
-
-@if (game != null && humanPlayer != null && bot != null) // tik jei žaidimas ir žaidėjai yra inicializuoti
-{
-
- // išsaugo dabartinė žaidimo būsena
-    var state = game!.State; 
-
- // nustato, ar žaidėjas gali baigti ėjimą
-    var canEndTurn = game.CanEndTurn(humanPlayer);
-
-    <h4>Kozeris: <span style="color:red">@state.TrumpSuit</span></h4>  // rodo kozerio tipas (suit)
-
-    <h4 class="turn-info">@game.GetTurnText(humanPlayer)</h4>// rodo kieno dabar ėjimas (tekstas)
-
-    <h4>Jūsų kortos</h4>// rodo žaidėjo kortų sąrašas
-    
-
-    <div class="card-row"> 
-        @foreach (var card in humanPlayer.Hand) // eina per visas žaidėjo kortas
-        {
-            bool canPlay = humanPlayer.CanPlayCard(game, card);  // tikrina, ar ši korta gali būti sužaidžiama
-            
-            // kiekviena korta rodoma kaip mygtukas; paspaudus kviečiama funkcija PlayCard
-            <button class="card-btn"
-                    disabled="@(canPlay ? false : true)"
-                    @onclick="() => PlayCard(card)">
-                @card
-            </button>
-            
-        }
-    </div>
-    // mygtukas leidžia žaidėjui baigti ėjimą, jei jis leidžiamas
-    <button class="btn btn-end-turn" @onclick="EndTurn" disabled="@(!canEndTurn)">
-        Baigti ėjimą
-    </button>
-
-    <h4>Bot'o kortos (testavimui):</h4> // rodoma boto ranka (testavimo tikslais)
-
-    <div class="card-row">
-        @foreach (var card in bot.Hand)
-        {
-            // einama per visas boto kortas
-            <div class="card-btn">@card</div>
-            // rodomos kaip tekstas
-        }
-    </div>
-
-    <h4>Stalas</h4> // kortos, kurios yra padėtos ant stalo 
-
-    @if (state?.TableCards == null || state.TableCards.Count == 0) // jei ant stalo nėra kortų
+@using card_game.GameDesign
+<div class="page-wrapper">
+    @if (game != null && humanPlayer != null && bot != null) // tik jei žaidimas ir žaidėjai yra inicializuoti
     {
-        <p>Stalas tuščias.</p>
-    }
-    else // jei kortos yra ant stalo
-    {
-        <div class="table-cards">
-            @foreach (var pair in state.TableCards)
+        <BotDeck Bot="bot" />
+        // išsaugo dabartinė žaidimo būsena
+        var state = game!.State; 
+
+        // nustato, ar žaidėjas gali baigti ėjimą
+        var canEndTurn = game.CanEndTurn(humanPlayer);
+        <h4 class="turn-info">@game.GetTurnText(humanPlayer)</h4>// rodo kieno dabar ėjimas (tekstas)
+        
+        // mygtukas leidžia žaidėjui baigti ėjimą, jei jis leidžiamas
+        <button class="btn btn-end-turn" @onclick="EndTurn" disabled="@(!canEndTurn)">
+            Baigti ėjimą
+        </button>
+
+        //<div class="card-row">
+        //    @foreach (var card in bot.Hand)
+        //    {
+        //        // einama per visas boto kortas
+        //        <div class="card-btn">@card</div>
+          //      // rodomos kaip tekstas
+            //}
+        //</div>
+
+        
+        @if (state?.TableCards == null || state.TableCards.Count == 0) // jei ant stalo nėra kortų
+        {            
+        }
+        else // jei kortos yra ant stalo
+        {<div class="table-cards">
+            @for (int i = 0; i < 6; i++)
             {
-                // rodoma atakos ir gynybos kortų pora
                 <div class="table-pair">
-                    <div class="attack-card">Ataka: @pair.Key</div>
-                    <div class="defend-card">
-                        @(pair.Value != null ? $"Gynyba: {pair.Value}" : "—")
-                    </div>
+
+                    @if (i < state.TableCards.Count)
+                    {
+                        var pair = state.TableCards.ElementAt(i);
+
+                        <!-- Atakos korta (pirmoji poroje) -->
+                        <GameCard Card="@pair.Key" Disabled="true" class="attack-card"/>
+
+                        <!-- Gynybos korta, jei jau atsikirsta -->
+                        @if (pair.Value != null)
+                        {
+                            <GameCard Card="@pair.Value" Disabled="true" class="defend-card" />
+                        }
+                        else
+                        {
+                            <div class="defend-placeholder"></div> <!-- kai dar neatsikirsta -->
+                        }
+                    }
+        
+                </div>
+            }
+         </div>
+
+           // <div class="table-cards">
+             //   @foreach (var pair in state.TableCards)
+               // {
+                    // rodoma atakos ir gynybos kortų pora
+                 //   <div class="table-pair">
+                   //     <div class="attack-card">Ataka: @pair.Key</div>
+                     //   <div class="defend-card">
+                       //     @(pair.Value != null ? $"Gynyba: {pair.Value}" : "—")
+                        //</div>
+                    //</div>
+                //}
+            //</div>
+        }
+
+        @if (state?.IsGameOver == true)// jei žaidimas baigtas
+        {
+            <p><strong>Žaidimas baigtas!</strong></p>
+        }
+
+        <div class="deck-wrapper">
+            <DeckView 
+                RemainingCardsCount="state.Deck.CardsLeft"
+                TrumpCard="state.Deck.PeekBottomCard()" 
+            />
+        </div>
+
+
+        <div class="card-row">
+            @for (int i = 0; i < humanPlayer.Hand.Count; i++)
+            {
+                var card = humanPlayer.Hand[i];
+                bool canPlay = humanPlayer.CanPlayCard(game, card);
+
+                <div style="--index:@i; --count:@humanPlayer.Hand.Count;">
+                    <GameCard Card="card"
+                            Disabled="!canPlay"
+                            OnPlay="PlayCard" />
                 </div>
             }
         </div>
+        
+        <div class="player-info-bar">
+            <div class="profile-placeholder"></div>
+        </div>  
     }
-
-    @if (state?.IsGameOver == true)// jei žaidimas baigtas
+    else // jei žaidimas dar nepradėtas
     {
-        <p><strong>Žaidimas baigtas!</strong></p>
+        <button class="btn btn-primary" @onclick="StartGame">Pradėti žaidimą</button>
     }
-}
-else // jei žaidimas dar nepradėtas
-{
-    <button class="btn btn-primary" @onclick="StartGame">Pradėti žaidimą</button>
-}
-
+</div>
 @code {
     private DurakGameEngine? game;  // žaidimo variklio objektas
 
@@ -192,31 +218,84 @@ else // jei žaidimas dar nepradėtas
 }
 
 <style>
-/* kortų eilės stilius */
+.table-cards {
+    display: flex;
+    justify-content: center;   /* centre visos kortos */
+    gap: 40px;
+    flex-wrap: nowrap;         /* visos vienoje eilutėje */
+    margin-bottom: 50px;         
+}
+.table-pair {
+    position: relative;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+}
+.attack-card {
+    width: 100%;
+    height: 100%;
+}
+
+.defend-card {
+    position: absolute;
+    top: 0;
+    left: 0;
+    transform: translate(30px, 35px); /* šiek tiek paslinkta */
+    z-index: 10; /* kad būtų virš atakos kortos */
+}
+
+
+.deck-wrapper {
+    position: fixed;      /* fiksuotas ekrane */
+    top: 50%;             /* vertikaliai centre */
+    left: 5px;           /* šiek tiek nuo kairio krašto */
+    transform: translateY(-50%); /* tiksliai centras vertikaliai */
+    z-index: 20;          /* virš kitų elementų */
+}
+
+
+.player-info-bar {
+    width: 70%;                   /* užima dalį pločio */
+    height: 100px;                 /* maždaug mažiau nei pusė kortos aukščio */
+    background-color: #a2c2de;    /* šviesus fonas */
+    border-radius: 30px;
+    border: 2px solid #f0e1b4;
+    display: flex;
+    justify-content: flex-start;
+    align-items: center;
+    padding: 10px 20px;
+    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    position: relative;
+}
+
+.profile-placeholder {
+    width: 50px;
+    height: 50px;
+    background-color: #ddd;
+    border-radius: 50%;
+    border: 2px solid #bbb;
+}
+.page-wrapper {
+    background-color: #2c425a;
+    min-height: 100vh;           /* kad visada būtų per visą ekraną */
+    display: flex;
+    flex-direction: column;      /* kad elementai būtų išdėstyti vertikaliai */
+    justify-content: space-between; /* viršus–apačia tolygiai */
+    align-items: center;
+    padding: 20px;
+    box-sizing: border-box;
+}
+
 .card-row {
     display: flex;
-    flex-wrap: wrap;
+    justify-content: center;
+    align-items: flex-end;       /* kad kortos „sėdėtų“ ant apačios */
     gap: 10px;
-    margin-bottom: 20px;
+    flex-wrap: nowrap;
 }
 
-/* kortos kaip mygtuko stilius */
-.card-btn {
-    padding: 10px;
-    font-size: 16px;
-    background-color: white;
-    border: 2px solid black;
-    border-radius: 5px;
-    cursor: pointer;
-}
 
-/* išjungto mygtuko išvaizda */
-.card-btn:disabled {
-    background-color: #ddd;
-    color: #aaa;
-    cursor: not-allowed;
-}
-
+/
 /* mygtuko „Baigti ėjimą“ stilius */
 .btn-end-turn {
     margin: 20px 0;

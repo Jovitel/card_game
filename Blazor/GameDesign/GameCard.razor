@@ -1,0 +1,59 @@
+@using card_game.GameLogic
+@using card_game.GameDesign
+<div class="card @(Disabled ? "disabled" : "") @(SuitClass) @(Class)"
+     @onclick="OnClickHandler"
+     title="@Card.ToString()">
+    
+    <div class="card-top">
+        <span class="card-value">@ValueSymbol</span>
+        <span class="card-suit">@SuitSymbol</span>
+    </div>
+
+    <div class="card-center">@SuitSymbol</div>
+
+    <div class="card-bottom">
+        <span class="card-value">@ValueSymbol</span>
+        <span class="card-suit">@SuitSymbol</span>
+    </div>
+</div>
+
+@code {
+    [Parameter] public Card Card { get; set; } = default!;
+    [Parameter] public bool Disabled { get; set; }
+    [Parameter] public EventCallback<Card> OnPlay { get; set; }
+    [Parameter] public string? Class { get; set; } // <-- naujas parametras
+
+
+    private void OnClickHandler()
+    {
+        if (!Disabled)
+            OnPlay.InvokeAsync(Card);
+    }
+
+    private string ValueSymbol => Card.Value switch
+    {
+        11 => "J",
+        12 => "Q",
+        13 => "K",
+        14 => "A",
+        _ => Card.Value.ToString()
+    };
+
+    private string SuitSymbol => Card.Suit switch
+    {
+        Suit.Hearts => "♥",
+        Suit.Diamonds => "♦",
+        Suit.Clubs => "♣",
+        Suit.Spades => "♠",
+        _ => "?"
+    };
+
+    private string SuitClass => Card.Suit switch
+    {
+        Suit.Hearts => "hearts",
+        Suit.Diamonds => "diamonds",
+        Suit.Clubs => "clubs",
+        Suit.Spades => "spades",
+        _ => ""
+    };
+}
