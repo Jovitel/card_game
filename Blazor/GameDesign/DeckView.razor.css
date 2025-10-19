@@ -1,0 +1,15 @@
+.deck-container {
+    position: relative;
+    width: 100px;
+    height: 140px;
+    margin: 20px;
+}
+
+/* Kozerio korta vertikaliai */
+.trump-card {
+    position: absolute;
+    top: 0;
+    left: 30px;       /* perkelta šiek tiek į dešinę */
+    z-index: 1;       /* kad būtų po BackCard */
+    transform: rotate(90deg);
+}
