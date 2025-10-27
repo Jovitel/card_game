@@ -1,4 +1,359 @@
 @page "/game/1vs1"
+@page "/game/1vs1/{JoinCode?}"
 @layout MainLayout
+@using card_game.GameLogic
+@using card_game.Services
+@using card_game.GameDesign
+@using System.Text.Json
+@inject GameClientService GameClient
 
-<h2>Game Mode: 1 vs 1</h2>
+<h3>Durak 1vs1 Online</h3>
+
+@if (!connected)
+{
+    <p>Jungiamasi prie serverio...</p>
+}
+else if (!engineReady)
+{
+    <p>Laukiama kito žaidėjo... Kodas: <b>@roomCode</b></p>
+}
+else
+{
+    <h4>@turnText</h4>
+
+    <div class="top-hand">
+        <div class="card-row">
+            @foreach (var card in opponent!.Hand)
+            {
+                <GameCard Card="card" Disabled="true" />
+            }
+        </div>
+    </div>
+
+    <div class="table-area">
+        @foreach (var pair in game!.State.TableCards)
+        {
+            <div class="card-pair">
+                <GameCard Card="@pair.Key" Disabled="true" />
+                @if (pair.Value != null)
+                {
+                    <GameCard Card="@pair.Value" Disabled="true" />
+                }
+                else
+                {
+                    <div class="defend-placeholder">•••</div>
+                }
+            </div>
+        }
+    </div>
+
+    <div class="bottom-hand">
+        <div class="card-row">
+            @foreach (var card in me!.Hand)
+            {
+                bool canPlay =
+                    myTurn &&
+                    ((game!.State.Attacker == me && game.CanAttackWith(me, card)) ||
+                     (game.State.Defender == me && game.CanDefendWith(me, card)));
+
+                <GameCard Card="card" Disabled="!canPlay" OnPlay="() => PlayCard(card)" />
+            }
+        </div>
+    </div>
+
+    <button class="btn btn-primary" @onclick="EndTurn" disabled="@(!myTurn)">
+        Baigti ėjimą
+    </button>
+}
+
+@code {
+    [Parameter] public string? JoinCode { get; set; }
+
+    private DurakGameEngine? game;
+    private Player? me;
+    private Player? opponent;
+
+    private string? roomCode;
+    private bool connected = false;
+    private bool engineReady = false;
+    private bool myTurn = false;
+    private string turnText = "";
+
+    private bool isHost => string.IsNullOrEmpty(JoinCode);
+
+    protected override async Task OnInitializedAsync()
+    {
+        GameClient.OnStartGame += HostStartGame;
+        GameClient.OnGameActionReceived += ApplyAction;
+
+        await GameClient.ConnectAsync();
+        connected = true;
+
+        if (isHost)
+        {
+            roomCode = GenerateRoomCode();
+            await GameClient.CreateRoomAsync(roomCode);
+        }
+        else
+        {
+            roomCode = JoinCode;
+            await GameClient.JoinRoomAsync(roomCode!);
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async void HostStartGame()
+    {
+        if (!isHost) return;
+
+        me = new Player("P1");
+        opponent = new Player("P2");
+
+        game = new DurakGameEngine(new List<Player> { me, opponent });
+
+        SendInitState();
+        await SetupTurnsAsync();
+
+        engineReady = true;
+        UpdateTurnText();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async void SendInitState()
+    {
+        var initAction = new GameAction
+        {
+            Action = "INIT",
+            Data =
+            {
+                ["trump"] = game!.State.TrumpSuit.ToString(),
+                ["p1cards"] = JsonSerializer.Serialize(me!.Hand),
+                ["p2cards"] = JsonSerializer.Serialize(opponent!.Hand)
+            }
+        };
+
+        await GameClient.SendGameActionAsync(initAction);
+    }
+
+    private void ApplyInit(GameAction a)
+    {
+        if (isHost) return;
+        if (engineReady) return;
+
+        me = new Player("P2");
+        opponent = new Player("P1");
+
+        game = new DurakGameEngine(new List<Player> { opponent!, me! });
+
+        opponent!.Hand = JsonSerializer.Deserialize<List<Card>>(a.Data["p1cards"])!;
+        me!.Hand = JsonSerializer.Deserialize<List<Card>>(a.Data["p2cards"])!;
+        game.State.TrumpSuit = Enum.Parse<Suit>(a.Data["trump"]);
+
+        engineReady = true;
+        UpdateTurnText();
+        InvokeAsync(StateHasChanged);
+    }
+
+    private async Task SetupTurnsAsync()
+    {
+        var rand = new Random();
+        bool hostStarts = rand.Next(2) == 0;
+        string starterTag = hostStarts ? "P1" : "P2";
+
+        ForceStarter(starterTag);
+        myTurn = hostStarts;
+
+        var turnAction = new GameAction
+        {
+            Action = "SETTURN",
+            Data =
+            {
+                ["myTurn"] = (!hostStarts).ToString(),
+                ["starter"] = starterTag
+            }
+        };
+
+        await GameClient.SendGameActionAsync(turnAction);
+        UpdateTurnText();
+    }
+
+    private void ForceStarter(string starterTag)
+    {
+        Player starter = starterTag == "P1"
+            ? (isHost ? me : opponent)!
+            : (isHost ? opponent : me)!;
+
+        var idx = game!.State.Players.IndexOf(starter);
+        game.State.CurrentAttackerIndex = idx;
+        game.State.CurrentDefenderIndex = (idx + 1) % game.State.Players.Count;
+        game.State.Attacker = game.State.Players[game.State.CurrentAttackerIndex];
+        game.State.Defender = game.State.Players[game.State.CurrentDefenderIndex];
+    }
+
+    private async Task PlayCard(Card card)
+    {
+        if (!myTurn) return;
+
+        // DEFEND
+        if (game!.State.Defender == me)
+        {
+            var attackCard = game.State.TableCards.FirstOrDefault(p => p.Value == null).Key;
+            if (attackCard != null && game.Defend(me!, attackCard, card))
+            {
+                myTurn = false;
+                UpdateTurnText();
+
+                var act = new GameAction
+                {
+                    Action = "DEFEND",
+                    Data =
+                    {
+                        ["attackSuit"] = attackCard.Suit.ToString(),
+                        ["attackValue"] = attackCard.Value.ToString(),
+                        ["suit"] = card.Suit.ToString(),
+                        ["value"] = card.Value.ToString()
+                    }
+                };
+
+                await GameClient.SendGameActionAsync(act);
+                await InvokeAsync(StateHasChanged);
+                return;
+            }
+        }
+
+        // ATTACK
+        game.Attack(me!, card);
+        myTurn = false;
+        UpdateTurnText();
+
+        var action = new GameAction
+        {
+            Action = "ATTACK",
+            Data =
+            {
+                ["suit"] = card.Suit.ToString(),
+                ["value"] = card.Value.ToString()
+            }
+        };
+        await GameClient.SendGameActionAsync(action);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task EndTurn()
+    {
+        if (!myTurn) return;
+
+        game!.EndTurn(false);
+        myTurn = false;
+        UpdateTurnText();
+
+        var act = new GameAction { Action = "ENDTURN" };
+        await GameClient.SendGameActionAsync(act);
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async void ApplyAction(GameAction action)
+    {
+        switch (action.Action)
+        {
+            case "INIT":
+                ApplyInit(action);
+                break;
+
+            case "SETTURN":
+                myTurn = bool.Parse(action.Data["myTurn"]);
+                if (action.Data.TryGetValue("starter", out var starterTag))
+                    ForceStarter(starterTag);
+                break;
+
+            case "ATTACK":
+                HandleRemoteAttack(action);
+                break;
+
+            case "DEFEND":
+                HandleRemoteDefend(action);
+                break;
+
+            case "ENDTURN":
+                game!.EndTurn(false);
+                myTurn = (game!.State.Attacker == me);
+                break;
+        }
+
+        UpdateTurnText();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void HandleRemoteAttack(GameAction action)
+    {
+        var suit = Enum.Parse<Suit>(action.Data["suit"]);
+        var val = int.Parse(action.Data["value"]);
+        var card = opponent!.Hand.FirstOrDefault(c => c.Suit == suit && c.Value == val);
+        if (card != null)
+        {
+            game!.Attack(opponent!, card);
+        }
+        // po puolimo – dabar ginasi kitas
+        myTurn = (game!.State.Defender == me);
+    }
+
+    private void HandleRemoteDefend(GameAction action)
+    {
+        var asuit = Enum.Parse<Suit>(action.Data["attackSuit"]);
+        var aval = int.Parse(action.Data["attackValue"]);
+        var dsuit = Enum.Parse<Suit>(action.Data["suit"]);
+        var dval = int.Parse(action.Data["value"]);
+
+        // Saugiai randame atakos kortą ant stalo
+        var atkCard = game!.State.TableCards.Keys.FirstOrDefault(c => c.Suit == asuit && c.Value == aval);
+        if (atkCard == null)
+        {
+            // dar nepriėmė puolimo? tuomet nieko nedarom – saugiklis nuo nulaužimo
+            return;
+        }
+
+        // Saugiai randame gynybos kortą iš oponento rankos
+        var defCard = opponent!.Hand.FirstOrDefault(c => c.Suit == dsuit && c.Value == dval);
+        if (defCard == null)
+        {
+            return;
+        }
+
+        // Vykdom gynybą tik jei engine sutinka
+        var ok = game.Defend(opponent!, atkCard, defCard);
+        if (!ok)
+        {
+            return;
+        }
+
+        // Po gynybos – ėjimas vėl pas atakuotoją (gali pridėti kortų arba baigti ėjimą)
+        myTurn = (game!.State.Attacker == me);
+    }
+
+    private void UpdateTurnText()
+    {
+        if (game == null || me == null)
+        {
+            turnText = "";
+            return;
+        }
+        turnText = game.GetTurnText(me);
+    }
+
+    private Random rnd = new();
+    private string GenerateRoomCode(int length = 6)
+    {
+        const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        return new string(Enumerable.Repeat(chars, length)
+            .Select(s => s[rnd.Next(s.Length)]).ToArray());
+    }
+}
+
+<style>
+.card-row { display:flex; justify-content:center; gap:8px; margin:10px; }
+.table-area { display:flex; justify-content:center; gap:50px; margin:25px; }
+.card-pair { display:flex; flex-direction:column; align-items:center; }
+.top-hand, .bottom-hand { margin:15px; text-align:center; }
+.defend-placeholder { width:60px; height:80px; display:flex; align-items:center; justify-content:center; color:#fff;}
+</style>
