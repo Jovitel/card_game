@@ -1,6 +1,7 @@
 using CardGame.Shared.Models;
 using CardGame.Server.Data;
 using Microsoft.EntityFrameworkCore;
+using CardGame.Api.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
 
@@ -11,16 +12,21 @@ builder.Services.AddSwaggerGen();
 builder.Services.AddDbContext<UserDbContext>(options =>
     options.UseSqlite("Data Source=users.db"));
 
-// CORS konfigūracija
+// SignalR realaus laiko ryšiui 
+builder.Services.AddSignalR();
+
+// CORS konfigūracija   (leidžia Blazor frontend'ui jungtis prie šio API per SignalR)
 builder.Services.AddCors(options =>
 {
-    options.AddDefaultPolicy(policy =>
-        policy.WithOrigins("http://localhost:5103", "https://localhost:5103") // leisti abu variantus
-              .AllowAnyHeader()
-              .AllowAnyMethod());
+    options.AddPolicy("AllowBlazorDev", policy =>
+        policy.WithOrigins("https://localhost:5103")
+            .AllowAnyHeader()
+            .AllowAnyMethod()
+            .AllowCredentials()); // reikia SignalRui
 });
 
 var app = builder.Build();
+
 
 if (app.Environment.IsDevelopment())
 {
@@ -28,7 +34,12 @@ if (app.Environment.IsDevelopment())
     app.UseSwaggerUI();
 }
 
-app.UseCors();
+// naudoja CORS politika
+app.UseCors("AllowBlazorDev");
+app.UseHttpsRedirection();
+
+// registruoja signalR hub
+app.MapHub<GameHub>("/gamehub");
 
 // GET root
 app.MapGet("/", () => "CardGame API veikia!");
