@@ -2,13 +2,15 @@
 @layout MainLayout 
 @using card_game.GameLogic 
 @using card_game.GameDesign
+@inject NavigationManager NavigationManager
+
 <div class="page-wrapper">
     @if (game != null && humanPlayer != null && bot != null) // tik jei žaidimas ir žaidėjai yra inicializuoti
     {
         <BotDeck Bot="bot" />
         // išsaugo dabartinė žaidimo būsena
         var state = game!.State; 
-
+        
         // nustato, ar žaidėjas gali baigti ėjimą
         var canEndTurn = game.CanEndTurn(humanPlayer);
         <h4 class="turn-info">@game.GetTurnText(humanPlayer)</h4>// rodo kieno dabar ėjimas (tekstas)
@@ -72,12 +74,6 @@
                 //}
             //</div>
         }
-
-        @if (state?.IsGameOver == true)// jei žaidimas baigtas
-        {
-            <p><strong>Žaidimas baigtas!</strong></p>
-        }
-
         <div class="deck-wrapper">
             <DeckView 
                 RemainingCardsCount="state.Deck.CardsLeft"
@@ -109,7 +105,10 @@
         <button class="btn btn-primary" @onclick="StartGame">Pradėti žaidimą</button>
     }
 </div>
+     
 @code {
+    private bool playerWon = false;
+    
     private DurakGameEngine? game;  // žaidimo variklio objektas
 
     private Player? humanPlayer;  // žmogaus žaidėjas
@@ -119,6 +118,7 @@
     // funkcija, kuri paleidžia žaidima
     private async Task StartGame()
     {
+
         humanPlayer = new Player("Žaidėjas"); // sukuriamas žmogaus žaidėjas
 
         bot = new BotPlayer("Bot");// sukuriamas bot žaidėjas
@@ -127,8 +127,13 @@
         game = new DurakGameEngine(new List<Player> { humanPlayer, bot });
 
         await RefreshUI();  // atnaujinamas ekranas
-
+// Toliau paleidžiama boto eilė, jei jam priklauso (galima pridėti patikrinimą)
+    if (game.State.Attacker.IsBot)
+    {
         await game.RunBotTurn(RefreshUI); // kviečiamas boto ėjimas, jei jam priklauso
+    }
+    
+    await RefreshUI(); // dar kartą atnaujinti, jei botui priklausė ėjimas ir jis nebaigė žaidimo
     }
 
     // funkcija, kuri vykdoma kai žaidėjas paspaudžia ant kortos
@@ -209,6 +214,21 @@
     // funkcija, kuri atnaujina vartotojo sąsają
     private Task RefreshUI()
     {
+        if (game?.State?.IsGameOver == true)
+        {
+            // 1. Nustatome, ar žaidėjas laimėjo
+            playerWon = humanPlayer?.Hand.Count == 0;
+            
+            // 2. Iškart atliekame nukreipimą (navigaciją)
+            // Galite perduoti laimėtojo informaciją per užklausos eilutę, pvz.:
+            var result = playerWon ? "winner" : "loser";
+            
+            // Nukreipiame į pagrindinį meniu (ar kitą puslapį)
+            NavigationManager.NavigateTo($"/gameover/{result}");
+            
+            // Grąžiname, kad toliau nereikėtų atnaujinti UI
+            return Task.CompletedTask;
+        }
         // pranešama Blazor, kad reikia atnaujinti vaizdą
         InvokeAsync(StateHasChanged);
 
