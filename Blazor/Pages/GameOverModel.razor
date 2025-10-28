@@ -1,0 +1,92 @@
+@page "/GameOver/{Result}"
+@layout MainLayout
+@inject NavigationManager NavigationManager
+
+
+<div class="modal-overlay">
+   <div class="modal-content">
+        <h2>
+            @if (IsWinner)
+            {
+                <img src="images/Winner.png" alt="Winner" class="image" />
+            }
+            else
+            {
+                <img src="images/Defeat.png" alt="Defeat" class="image" />
+            }
+        </h2>
+        <div class="button-group">
+            <button class="btn" @onclick="PlayAgain">Play again</button>
+            <NavLink class="btn" href="/start">Main menu</NavLink>
+        </div>
+    </div>
+</div>
+
+@code {
+    [Parameter]
+    public string Result { get; set; } = "loser"; // Numatytasis rezultatas
+
+    private bool IsWinner => Result.ToLower() == "winner";
+
+    private void GoToStart()
+    {
+        NavigationManager.NavigateTo("/start");
+    }
+    
+    private void PlayAgain()
+    {
+        // Nukreipiame atgal į žaidimo puslapį, kad iš naujo inicijuotų žaidimą
+        NavigationManager.NavigateTo("/game/1vsbot", forceLoad: true); 
+    }
+}
+<style>
+.image {
+    width: 500px;  /* Nustato nuotraukos plotį */
+    height: auto;  /* Automatiškai išlaiko proporcijas */
+    margin-bottom: 10px; /* Šiek tiek vietos tarp nuotraukos ir mygtukų */
+}
+.modal-overlay {
+    position: fixed;
+    top: 0; left: 0; right: 0; bottom: 0;
+    background:  #2c425a;
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    z-index: 1000;
+}
+.modal-content {
+    background: #a2c2de;
+    padding: 40px 60px;
+    border-radius: 20px;
+    text-align: center;
+    box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+    z-index: 10000;
+}
+.button-group {
+    margin-top: 20px;
+    display: flex;
+    justify-content: center;
+    gap: 20px;
+}
+.btn {
+    background-color: #2c425a;
+    color: white;
+    padding: 12px;
+    border: none;
+    border-radius: 8px;
+    font-size: 16px;
+    font-weight: bold;
+    cursor: pointer;
+    transition: 0.3s;
+    text-decoration: none;
+    text-align: center;
+    min-width: 180px;
+    max-height: 50px;
+}
+
+.btn:hover  {
+    background-color: #56708c;
+    color: #f0e1b4;
+}
+
+</style>
