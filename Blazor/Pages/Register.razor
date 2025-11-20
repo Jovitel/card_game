@@ -2,6 +2,8 @@
 @using CardGame.Shared.Models
 @inject HttpClient Http
 @inject NavigationManager Nav
+@inject UserSession UserSession
+
 
 @code {
     private User newUser = new User();
@@ -32,7 +34,20 @@
 
     if (response.IsSuccessStatusCode)
     {
-        Nav.NavigateTo("/start");
+        // gaunamas sukurtas vartotojas iš serverio
+        var createdUser = await response.Content.ReadFromJsonAsync<User>();
+
+        if (createdUser != null)
+        {
+            // nustatomas vartotojas Blazor sesijoje
+            UserSession.SetUser(createdUser);
+
+            Nav.NavigateTo("/start");
+        }
+        else
+        {
+            userNameServerError = "Registration succeeded but failed to load user data.";
+        }
     }
     else
     {

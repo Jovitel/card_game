@@ -20,6 +20,9 @@ namespace card_game.GameLogic // klasė priklauso žaidimo logikos vardų sriči
         // nurodo, ar žaidimas jau baigtas
         public bool IsGameOver { get; set; }
 
+        // dabartinis ėjimo numeris
+        public int TurnNumber { get; set; } = 1;
+
         // dabartinio atakuotojo indeksas sąraše
         public int CurrentAttackerIndex { get; set; }
 

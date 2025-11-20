@@ -5,6 +5,7 @@ using CardGame.Api.Hubs;
 
 var builder = WebApplication.CreateBuilder(args);
 
+builder.Services.AddControllers();   // <-- Registruoja MVC controllerius
 builder.Services.AddEndpointsApiExplorer();
 builder.Services.AddSwaggerGen();
 
@@ -82,4 +83,6 @@ app.MapPost("/login", async (User loginUser, UserDbContext db) =>
 
     return Results.Ok(user);
 });
+app.MapControllers();   // <-- Sujungia controller routes
+
 app.Run();

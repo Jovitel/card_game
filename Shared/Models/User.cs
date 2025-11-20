@@ -16,5 +16,8 @@ namespace CardGame.Shared.Models
         [Required]
         [MinLength(6)]
         public string Password { get; set; } = string.Empty;
+
+        public int Wins { get; set; } = 0;
+        public int Losses { get; set; } = 0;
     }
 }

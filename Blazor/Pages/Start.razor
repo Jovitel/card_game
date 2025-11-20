@@ -1,5 +1,7 @@
 @page "/start"
 @layout MainLayout
+@using CardGame.Shared 
+@inject UserSession UserSession
 
 <div class="page-wrapper">
     <div class="container">
@@ -7,7 +9,20 @@
             <div class="columns">
                 <div class="line"> 
                     <input type="text" placeholder="photo" class="circle" readonly/>
-                    <input type="text" placeholder="player" class="input-field" readonly/>
+                    <div class="column_1">
+                        <input type="text" 
+                            class="input-field" 
+                            readonly 
+                            value="@GetPlayerName()" />
+                        <input type="text" 
+                            class="input-field" 
+                            readonly 
+                            value="Wins: @UserSession.CurrentUser?.Wins" />
+                        <input type="text" 
+                            class="input-field" 
+                            readonly 
+                            value="Losses: @UserSession.CurrentUser?.Losses" />
+                    </div>
                 </div>
                 <img src="images/durnius.png" alt="Žaidimo nuotrauka" class="top-image" />
                 <div>
@@ -54,8 +69,21 @@
         </div>
     </div>
 </div>
+@code {
+   private string GetPlayerName()
+    {
+        return UserSession.UserId > 0 
+            ? UserSession.CurrentUser?.UserName ?? "Guest"
+            : "Guest";
+    }
+}
 
 <style>
+.column_1 {
+    display: flex;
+    flex-direction: column; /* vienas po kito */
+    gap: 5px;               /* tarpai tarp laukelių */
+}
 .card-image {
     width: 250px;   
 }
