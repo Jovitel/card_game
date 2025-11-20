@@ -2,7 +2,10 @@
 @layout MainLayout 
 @using card_game.GameLogic 
 @using card_game.GameDesign
+@using CardGame.Shared.Models
 @inject NavigationManager NavigationManager
+@inject HttpClient Http
+@inject UserSession UserSession
 
 <div class="page-wrapper">
     @if (game != null && humanPlayer != null && bot != null) // tik jei žaidimas ir žaidėjai yra inicializuoti
@@ -20,16 +23,6 @@
             Baigti ėjimą
         </button>
 
-        //<div class="card-row">
-        //    @foreach (var card in bot.Hand)
-        //    {
-        //        // einama per visas boto kortas
-        //        <div class="card-btn">@card</div>
-          //      // rodomos kaip tekstas
-            //}
-        //</div>
-
-        
         @if (state?.TableCards == null || state.TableCards.Count == 0) // jei ant stalo nėra kortų
         {            
         }
@@ -60,19 +53,6 @@
                 </div>
             }
          </div>
-
-           // <div class="table-cards">
-             //   @foreach (var pair in state.TableCards)
-               // {
-                    // rodoma atakos ir gynybos kortų pora
-                 //   <div class="table-pair">
-                   //     <div class="attack-card">Ataka: @pair.Key</div>
-                     //   <div class="defend-card">
-                       //     @(pair.Value != null ? $"Gynyba: {pair.Value}" : "—")
-                        //</div>
-                    //</div>
-                //}
-            //</div>
         }
         <div class="deck-wrapper">
             <DeckView 
@@ -88,7 +68,10 @@
                 var card = humanPlayer.Hand[i];
                 bool canPlay = humanPlayer.CanPlayCard(game, card);
 
-                <div style="--index:@i; --count:@humanPlayer.Hand.Count;">
+                <!-- Pridėta 'tooltip-container' klasė ir 'data-tooltip' atributas neaktyvioms kortoms -->
+                <div class="@(canPlay ? "" : "tooltip-container")"
+                     data-tooltip="@(canPlay ? "" : "You cannot use this card")"
+                     style="--index:@i; --count:@humanPlayer.Hand.Count;">
                     <GameCard Card="card"
                             Disabled="!canPlay"
                             OnPlay="PlayCard" />
@@ -114,6 +97,8 @@
     private Player? humanPlayer;  // žmogaus žaidėjas
 
     private BotPlayer? bot;  // boto žaidėjas
+    private bool statsSent = false;  // <-- čia naujas flag
+
 
     // funkcija, kuri paleidžia žaidima
     private async Task StartGame()
@@ -125,15 +110,15 @@
 
         // sukuriamas naujas žaidimo variklis su abiem žaidėjais
         game = new DurakGameEngine(new List<Player> { humanPlayer, bot });
-
+        
+        
         await RefreshUI();  // atnaujinamas ekranas
-// Toliau paleidžiama boto eilė, jei jam priklauso (galima pridėti patikrinimą)
-    if (game.State.Attacker.IsBot)
-    {
-        await game.RunBotTurn(RefreshUI); // kviečiamas boto ėjimas, jei jam priklauso
-    }
-    
-    await RefreshUI(); // dar kartą atnaujinti, jei botui priklausė ėjimas ir jis nebaigė žaidimo
+        // Toliau paleidžiama boto eilė, jei jam priklauso (galima pridėti patikrinimą)
+        if (game.State.Attacker.IsBot)
+        {
+            await game.RunBotTurn(RefreshUI); // kviečiamas boto ėjimas, jei jam priklauso
+        }
+        await RefreshUI(); // dar kartą atnaujinti, jei botui priklausė ėjimas ir jis nebaigė žaidimo
     }
 
     // funkcija, kuri vykdoma kai žaidėjas paspaudžia ant kortos
@@ -149,6 +134,13 @@
             // bandoma atlikti ataką su pasirinkta korta
             if (game.Attack(humanPlayer, card))
             {
+                // Įrašome į istoriją
+                UserSession.AddGameHistoryEntry(
+                    turnNumber: game.State.TurnNumber,
+                    player: humanPlayer.Name,
+                    action: "ATTACK",
+                    cardPlayed: card
+                );
                 // atnaujinamas vaizdas
                 await RefreshUI();
 
@@ -168,6 +160,14 @@
             // jei galima gintis šia korta
             if (attackCard != null && game.Defend(humanPlayer, attackCard, card))
             {
+                // Įrašome į istoriją
+                UserSession.AddGameHistoryEntry(
+                    turnNumber: game.State.TurnNumber,
+                    player: humanPlayer.Name,
+                    action: "DEFEND",
+                    cardPlayed: card,
+                    attackCard: attackCard
+                );
                 // atnaujinamas ekranas
                 await RefreshUI();
 
@@ -207,33 +207,58 @@
         // užbaigiamas ėjimas
         await game.EndTurnWithDelay(false, RefreshUI);
 
+        // įrašome „ENDTURN“ į istoriją
+        UserSession.AddGameHistoryEntry(
+            turnNumber: game.State.TurnNumber,
+            player: game.State.Attacker.Name,
+            action: "ENDTURN"
+        );
+
         // leidžiama botui pradėti savo ėjimą
         await game.RunBotTurn(RefreshUI);
     }
 
     // funkcija, kuri atnaujina vartotojo sąsają
-    private Task RefreshUI()
+    private async Task RefreshUI()
     {
-        if (game?.State?.IsGameOver == true)
+        if (game?.State?.IsGameOver == true && !statsSent)
         {
-            // 1. Nustatome, ar žaidėjas laimėjo
-            playerWon = humanPlayer?.Hand.Count == 0;
-            
-            // 2. Iškart atliekame nukreipimą (navigaciją)
-            // Galite perduoti laimėtojo informaciją per užklausos eilutę, pvz.:
-            var result = playerWon ? "winner" : "loser";
-            
-            // Nukreipiame į pagrindinį meniu (ar kitą puslapį)
-            NavigationManager.NavigateTo($"/gameover/{result}");
-            
-            // Grąžiname, kad toliau nereikėtų atnaujinti UI
-            return Task.CompletedTask;
-        }
-        // pranešama Blazor, kad reikia atnaujinti vaizdą
-        InvokeAsync(StateHasChanged);
+            statsSent = true; // vieną kartą siųsti statistiką
 
-        // grąžinamas užbaigtas uždavinys (be laukimo)
-        return Task.CompletedTask;
+            playerWon = (humanPlayer?.Hand?.Count ?? 1) == 0;
+            var result = playerWon ? "winner" : "loser";
+
+            Console.WriteLine($"Game over. PlayerWon: {playerWon}");
+            Console.WriteLine($"UserSession.UserId = {UserSession.UserId}");
+
+            if (UserSession.UserId > 0)
+            {
+                HttpResponseMessage response;
+                if (playerWon)
+                {
+                    response = await Http.PostAsync($"api/stats/win/{UserSession.UserId}", null);
+                    Console.WriteLine($"POST win status: {response.StatusCode}");
+                }
+                else
+                {
+                    response = await Http.PostAsync($"api/stats/loss/{UserSession.UserId}", null);
+                    Console.WriteLine($"POST loss status: {response.StatusCode}");
+                }
+
+                var updatedUser = await Http.GetFromJsonAsync<User>($"api/users/{UserSession.UserId}");
+                if (updatedUser != null)
+                {
+                    UserSession.SetUser(updatedUser);
+                    Console.WriteLine($"Updated Wins: {updatedUser.Wins}, Losses: {updatedUser.Losses}");
+                }
+            }
+
+            NavigationManager.NavigateTo($"/gameover/{result}");
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        await InvokeAsync(StateHasChanged);
     }
 }
 
@@ -342,5 +367,42 @@
     padding: 10px;
     border-radius: 8px;
     background-color: #f2f2f2;
+}
+/* --- TOOLTIP STILIAI --- */
+
+.tooltip-container {
+    position: relative; /* Suteikia kontekstą tooltip'ui */
+    /* Nustatome kursorį 'not-allowed', kad pabrėžtume, jog korta neaktyvi */
+    cursor: not-allowed;
+}
+
+/* Rodomas tooltip'as užvedus pele ant neaktyvios kortos konteinerio */
+.tooltip-container[data-tooltip]:hover::after {
+    content: attr(data-tooltip); /* Ištraukia tekstą iš data-tooltip atributo */
+    position: absolute;
+    //bottom: 50%; /* Padeda tooltip'ą virš kortos */
+    left: 50%;
+    transform: translateX(-50%);
+    white-space: nowrap; /* Kad tekstas netilptų į kelias eilutes */
+    background-color: #56708c;
+    color: #f0e1b4;
+    padding: 6px 12px;
+    border-radius: 8px;
+    font-size: 13px;
+    font-weight: 500;
+    z-index: 100;
+    pointer-events: none; /* Neleisti blokuoti jokio kito elemento */
+    margin-bottom: 9px; /* Tarpas tarp kortos ir tooltip'o */
+    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+    /* Pridėta papildoma animacija */
+    opacity: 0;
+    visibility: hidden;
+    transition: opacity 0.2s ease-in-out, visibility 0.2s ease-in-out;
+}
+
+/* Tooltip'o rodymas užvedus pele */
+.tooltip-container[data-tooltip]:hover::after {
+    opacity: 1;
+    visibility: visible;
 }
 </style>

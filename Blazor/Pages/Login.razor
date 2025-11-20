@@ -1,13 +1,17 @@
 @page "/login"
+@using CardGame.Shared
+@using CardGame.Shared.Models
 @layout MainLayout
 @inject NavigationManager Nav
 @inject HttpClient Http
+@inject UserSession UserSession
+
 
 @code {
     private string email = string.Empty;
     private string password = string.Empty;
     private bool showErrors = false;
-    private string loginError = string.Empty;
+    private string loginError = string.Empty;    
 
     private bool IsFormValid =>
         !string.IsNullOrWhiteSpace(email) &&
@@ -22,10 +26,13 @@
         if (!IsFormValid) return;
 
         var loginData = new { Email = email, Password = password };
-        var response = await Http.PostAsJsonAsync("http://localhost:5070/login", loginData);
+        var response = await Http.PostAsJsonAsync("login", loginData); //kad bendrai veiktu
 
         if (response.IsSuccessStatusCode)
         {
+            var user = await response.Content.ReadFromJsonAsync<User>();
+            UserSession.SetUser(user);
+
             Nav.NavigateTo("/start");
         }
         else

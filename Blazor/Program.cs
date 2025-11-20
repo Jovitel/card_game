@@ -3,12 +3,14 @@ using Microsoft.AspNetCore.Components.WebAssembly.Hosting;
 using CardGame.Blazor; // <- svarbu, kad matytų App klasę
 using System.Net.Http;
 using card_game.Services;
+using CardGame.Shared;
 
 var builder = WebAssemblyHostBuilder.CreateDefault(args);
 
 // Šitas failas turi egzistuoti: App.razor
 builder.RootComponents.Add<App>("#app");
 builder.RootComponents.Add<HeadOutlet>("head::after");
+builder.Services.AddScoped<UserSession>();
 
 // HttpClient registracija
 builder.Services.AddScoped(sp => new HttpClient
@@ -18,5 +20,6 @@ builder.Services.AddScoped(sp => new HttpClient
 
 // SignalR klientas
 builder.Services.AddSingleton<GameClientService>();
+
 
 await builder.Build().RunAsync();

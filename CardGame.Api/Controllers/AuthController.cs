@@ -26,11 +26,10 @@ namespace CardGame.Shared.Controllers
         public IActionResult Login([FromBody] User user)
         {
             var existingUser = Users.FirstOrDefault(u => u.Email == user.Email && u.Password == user.Password);
-
             if (existingUser == null)
                 return Unauthorized("Invalid credentials");
 
-            return Ok(new { message = "Login successful", existingUser.UserName });
+            return Ok(existingUser); // <-- grąžiname visą User objektą
         }
     }
 }

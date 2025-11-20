@@ -4,8 +4,12 @@
 @using card_game.GameLogic
 @using card_game.Services
 @using card_game.GameDesign
+@using CardGame.Shared.Models
 @using System.Text.Json
 @inject GameClientService GameClient
+@inject HttpClient Http
+@inject UserSession UserSession
+@inject NavigationManager NavigationManager
 
 <h3>Durak 1vs1 Online</h3>
 
@@ -78,6 +82,9 @@ else
     private bool engineReady = false;
     private bool myTurn = false;
     private string turnText = "";
+
+    private bool statsSent = false; // naujas flag
+
 
     private bool isHost => string.IsNullOrEmpty(JoinCode);
 
@@ -347,6 +354,50 @@ else
         const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
         return new string(Enumerable.Repeat(chars, length)
             .Select(s => s[rnd.Next(s.Length)]).ToArray());
+    }
+    private async Task RefreshUI() //ZAIDEJO ISTORIJA REIKES PATIKRINT AR VEIKIA
+    {
+        // Patikriname ar žaidimas baigtas ir dar nebuvo išsiųsta statistika
+        if (game?.State?.IsGameOver == true && !statsSent)
+        {
+            statsSent = true; // vieną kartą siunčiame statistiką
+
+            bool playerWon = me!.Hand.Count == 0;
+            var result = playerWon ? "winner" : "loser";
+
+            Console.WriteLine($"Game over. PlayerWon: {playerWon}");
+
+            // Jei turi UserSession arba kitą ID, siųsti į serverį
+            if (UserSession.UserId > 0)
+            {
+                HttpResponseMessage response;
+                if (playerWon)
+                {
+                    response = await Http.PostAsync($"api/stats/win/{UserSession.UserId}", null);
+                    Console.WriteLine($"POST win status: {response.StatusCode}");
+                }
+                else
+                {
+                    response = await Http.PostAsync($"api/stats/loss/{UserSession.UserId}", null);
+                    Console.WriteLine($"POST loss status: {response.StatusCode}");
+                }
+
+                var updatedUser = await Http.GetFromJsonAsync<User>($"api/users/{UserSession.UserId}");
+                if (updatedUser != null)
+                {
+                    UserSession.SetUser(updatedUser);
+                    Console.WriteLine($"Updated Wins: {updatedUser.Wins}, Losses: {updatedUser.Losses}");
+                }
+            }
+
+            // Nukreipiame į gameover puslapį
+            NavigationManager.NavigateTo($"/gameover/{result}");
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        // Atnaujiname UI
+        await InvokeAsync(StateHasChanged);
     }
 }
 

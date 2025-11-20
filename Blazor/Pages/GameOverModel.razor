@@ -1,6 +1,7 @@
 @page "/GameOver/{Result}"
 @layout MainLayout
 @inject NavigationManager NavigationManager
+@inject UserSession UserSession //kad liktu prisijunges
 
 
 <div class="modal-overlay">
@@ -17,7 +18,8 @@
         </h2>
         <div class="button-group">
             <button class="btn" @onclick="PlayAgain">Play again</button>
-            <NavLink class="btn" href="/start">Main menu</NavLink>
+            <NavLink class="btn" href="/start">Main Menu</NavLink>
+            <NavLink class="btn" href="/gamehistory">Game History</NavLink>
         </div>
     </div>
 </div>
