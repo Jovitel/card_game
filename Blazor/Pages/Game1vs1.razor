@@ -58,7 +58,7 @@ else
                 bool canPlay =
                     myTurn &&
                     ((game!.State.Attacker == me && game.CanAttackWith(me, card)) ||
-                     (game.State.Defender == me && game.CanDefendWith(me, card)));
+                    (game.State.Defender == me && game.CanDefendWith(me, card)));
 
                 <GameCard Card="card" Disabled="!canPlay" OnPlay="() => PlayCard(card)" />
             }
@@ -68,6 +68,9 @@ else
     <button class="btn btn-primary" @onclick="EndTurn" disabled="@(!myTurn)">
         Baigti ėjimą
     </button>
+    <button class="btn btn-warning" @onclick="PickUpCards" disabled="@(!myTurn || game?.State.Defender != me)">
+    Paimti kortas
+</button>
 }
 
 @code {
@@ -82,9 +85,7 @@ else
     private bool engineReady = false;
     private bool myTurn = false;
     private string turnText = "";
-
-    private bool statsSent = false; // naujas flag
-
+    private bool statsSent = false;
 
     private bool isHost => string.IsNullOrEmpty(JoinCode);
 
@@ -145,17 +146,21 @@ else
 
     private void ApplyInit(GameAction a)
     {
-        if (isHost) return;
-        if (engineReady) return;
+        if (isHost || engineReady) return;
 
         me = new Player("P2");
         opponent = new Player("P1");
-
         game = new DurakGameEngine(new List<Player> { opponent!, me! });
 
+        // hosto duomenys
         opponent!.Hand = JsonSerializer.Deserialize<List<Card>>(a.Data["p1cards"])!;
         me!.Hand = JsonSerializer.Deserialize<List<Card>>(a.Data["p2cards"])!;
         game.State.TrumpSuit = Enum.Parse<Suit>(a.Data["trump"]);
+
+        // išjungiam kaladės naudojimą šiame kliente
+        game.State.Deck = new Deck();
+        game.State.Deck = new Deck(); // dummy deck, guest pusėje nenaudojamas
+
 
         engineReady = true;
         UpdateTurnText();
@@ -200,10 +205,10 @@ else
 
     private async Task PlayCard(Card card)
     {
-        if (!myTurn) return;
+        if (!myTurn || game == null || me == null) return;
 
         // DEFEND
-        if (game!.State.Defender == me)
+        if (game.State.Defender == me)
         {
             var attackCard = game.State.TableCards.FirstOrDefault(p => p.Value == null).Key;
             if (attackCard != null && game.Defend(me!, attackCard, card))
@@ -230,67 +235,265 @@ else
         }
 
         // ATTACK
-        game.Attack(me!, card);
-        myTurn = false;
-        UpdateTurnText();
-
-        var action = new GameAction
+        if (game.Attack(me!, card))
         {
-            Action = "ATTACK",
+            myTurn = false;
+            UpdateTurnText();
+
+            var action = new GameAction
+            {
+                Action = "ATTACK",
+                Data =
+                {
+                    ["suit"] = card.Suit.ToString(),
+                    ["value"] = card.Value.ToString()
+                }
+            };
+            await GameClient.SendGameActionAsync(action);
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+private async Task PickUpCards()
+{
+    if (game == null || me == null) return;
+    if (!myTurn) return;
+    if (game.State.Defender != me) return;
+
+    // Paimam visas kortas nuo stalo
+    foreach (var pair in game.State.TableCards)
+    {
+        me.Hand.Add(pair.Key);
+        if (pair.Value != null)
+            me.Hand.Add(pair.Value);
+    }
+
+    game.State.TableCards.Clear();
+
+    if (isHost)
+    {
+        game.EndTurn(true);
+
+        var act = new GameAction
+        {
+            Action = "PICKUP",
             Data =
             {
-                ["suit"] = card.Suit.ToString(),
-                ["value"] = card.Value.ToString()
+                ["p1cards"] = JsonSerializer.Serialize(game.State.Players[0].Hand),
+                ["p2cards"] = JsonSerializer.Serialize(game.State.Players[1].Hand),
+                ["nextAttacker"] = game.State.Attacker.Name,
+                ["nextDefender"] = game.State.Defender.Name,
+                ["trump"] = game.State.TrumpSuit.ToString()
             }
         };
-        await GameClient.SendGameActionAsync(action);
-        await InvokeAsync(StateHasChanged);
-    }
 
-    private async Task EndTurn()
-    {
-        if (!myTurn) return;
-
-        game!.EndTurn(false);
-        myTurn = false;
-        UpdateTurnText();
-
-        var act = new GameAction { Action = "ENDTURN" };
         await GameClient.SendGameActionAsync(act);
-        await InvokeAsync(StateHasChanged);
+
+        //Iškart atnaujiname vietinį UI (kad nesulauktume SignalR round-trip)
+        ApplyAction(act);
+    }
+    else
+    {
+        // Guest prašo hosto patvirtinti pickup
+        var request = new GameAction { Action = "REQUEST_PICKUP" };
+        await GameClient.SendGameActionAsync(request);
     }
 
-    private async void ApplyAction(GameAction action)
+    myTurn = false;
+    UpdateTurnText();
+    await InvokeAsync(StateHasChanged);
+}
+
+
+private async Task EndTurn()
+{
+    if (!myTurn || game == null || me == null) return;
+    if (!game.CanEndTurn(me!)) return;
+
+    if (isHost)
     {
-        switch (action.Action)
+        // Hostas turi tikrą kaladę, todėl čia išdalina kortas
+        game.EndTurn(false);
+
+        // siunčiam viską abiem pusėm
+        var act = new GameAction
         {
-            case "INIT":
-                ApplyInit(action);
-                break;
+            Action = "ENDTURN",
+            Data =
+            {
+                ["nextAttacker"] = game.State.Attacker.Name,
+                ["nextDefender"] = game.State.Defender.Name,
+                ["p1cards"] = JsonSerializer.Serialize(game.State.Players[0].Hand),
+                ["p2cards"] = JsonSerializer.Serialize(game.State.Players[1].Hand),
+                ["trump"] = game.State.TrumpSuit.ToString()
+            }
+        };
 
-            case "SETTURN":
+        await GameClient.SendGameActionAsync(act);
+    }
+    else
+    {
+        // Guest neturi deck – tik prašo hosto užbaigti ėjimą
+        var request = new GameAction { Action = "REQUEST_ENDTURN" };
+        await GameClient.SendGameActionAsync(request);
+    }
+
+    myTurn = false;
+    UpdateTurnText();
+    await InvokeAsync(StateHasChanged);
+}
+
+
+private async void ApplyAction(GameAction action)
+{
+    switch (action.Action)
+    {
+        case "INIT":
+            ApplyInit(action);
+            break;
+
+        case "SETTURN":
+            if (!isHost)
                 myTurn = bool.Parse(action.Data["myTurn"]);
-                if (action.Data.TryGetValue("starter", out var starterTag))
-                    ForceStarter(starterTag);
-                break;
+            if (action.Data.TryGetValue("starter", out var starterTag))
+                ForceStarter(starterTag);
+            break;
 
-            case "ATTACK":
-                HandleRemoteAttack(action);
-                break;
+        case "ATTACK":
+            HandleRemoteAttack(action);
+            break;
 
-            case "DEFEND":
-                HandleRemoteDefend(action);
-                break;
+        case "DEFEND":
+            HandleRemoteDefend(action);
+            break;
 
-            case "ENDTURN":
-                game!.EndTurn(false);
-                myTurn = (game!.State.Attacker == me);
-                break;
+        case "REQUEST_ENDTURN":
+            if (isHost && game != null)
+            {
+                game.EndTurn(false);
+
+                var act = new GameAction
+                {
+                    Action = "ENDTURN",
+                    Data =
+                    {
+                        ["nextAttacker"] = game.State.Attacker.Name,
+                        ["nextDefender"] = game.State.Defender.Name,
+                        ["p1cards"] = JsonSerializer.Serialize(game.State.Players[0].Hand),
+                        ["p2cards"] = JsonSerializer.Serialize(game.State.Players[1].Hand),
+                        ["trump"] = game.State.TrumpSuit.ToString()
+                    }
+                };
+                await GameClient.SendGameActionAsync(act);
+            }
+            break;
+
+        case "ENDTURN":
+        {
+            if (action.Data.TryGetValue("nextAttacker", out var attName) &&
+                action.Data.TryGetValue("nextDefender", out var defName))
+            {
+                var att = game!.State.Players.FirstOrDefault(p => p.Name == attName);
+                var def = game.State.Players.FirstOrDefault(p => p.Name == defName);
+                if (att != null && def != null)
+                {
+                    game.State.Attacker = att;
+                    game.State.Defender = def;
+                    game.State.CurrentAttackerIndex = game.State.Players.IndexOf(att);
+                    game.State.CurrentDefenderIndex = game.State.Players.IndexOf(def);
+                }
+            }
+
+            if (action.Data.TryGetValue("p1cards", out var p1json) &&
+                action.Data.TryGetValue("p2cards", out var p2json))
+            {
+                var p1Cards = JsonSerializer.Deserialize<List<Card>>(p1json)!;
+                var p2Cards = JsonSerializer.Deserialize<List<Card>>(p2json)!;
+
+                var p1 = game!.State.Players.First(p => p.Name == "P1");
+                var p2 = game.State.Players.First(p => p.Name == "P2");
+
+                p1.Hand = p1Cards;
+                p2.Hand = p2Cards;
+            }
+
+            if (action.Data.TryGetValue("trump", out var trumpSuit))
+                game!.State.TrumpSuit = Enum.Parse<Suit>(trumpSuit);
+
+            game!.State.TableCards.Clear();
+            myTurn = (game!.State.Attacker == me);
+            break;
+        }
+        case "REQUEST_PICKUP":
+    if (isHost && game != null)
+    {
+        // Hostas atlieka pickup logiką
+        var defender = game.State.Defender;
+        foreach (var pair in game.State.TableCards)
+        {
+            defender.Hand.Add(pair.Key);
+            if (pair.Value != null)
+                defender.Hand.Add(pair.Value);
         }
 
-        UpdateTurnText();
-        await InvokeAsync(StateHasChanged);
+        game.EndTurn(true);
+
+        var act = new GameAction
+        {
+            Action = "PICKUP",
+            Data =
+            {
+                ["p1cards"] = JsonSerializer.Serialize(game.State.Players[0].Hand),
+                ["p2cards"] = JsonSerializer.Serialize(game.State.Players[1].Hand),
+                ["nextAttacker"] = game.State.Attacker.Name,
+                ["nextDefender"] = game.State.Defender.Name,
+                ["trump"] = game.State.TrumpSuit.ToString()
+            }
+        };
+
+        await GameClient.SendGameActionAsync(act);
     }
+    break;
+
+    case "PICKUP":
+{
+    // atnaujinam žaidimo būseną
+    var p1 = game!.State.Players.First(p => p.Name == "P1");
+    var p2 = game.State.Players.First(p => p.Name == "P2");
+
+    p1.Hand = JsonSerializer.Deserialize<List<Card>>(action.Data["p1cards"])!;
+    p2.Hand = JsonSerializer.Deserialize<List<Card>>(action.Data["p2cards"])!;
+    game.State.TableCards.Clear();
+
+    // iš JSON ateina kas yra atakuotojas/gynėjas vardais
+    var attName = action.Data["nextAttacker"];
+    var defName = action.Data["nextDefender"];
+
+    var att = game.State.Players.First(p => p.Name == attName);
+    var def = game.State.Players.First(p => p.Name == defName);
+    game.State.Attacker = att;
+    game.State.Defender = def;
+    game.State.CurrentAttackerIndex = game.State.Players.IndexOf(att);
+    game.State.CurrentDefenderIndex = game.State.Players.IndexOf(def);
+
+    //Nustatom kieno eilė
+    // jei dabar aš esu atakuotojas – tai mano ėjimas
+    myTurn = (game.State.Attacker == me) || (game.State.Defender == me && game.State.TableCards.Count == 0);
+    UpdateTurnText();
+
+    await InvokeAsync(StateHasChanged);
+    break;
+}
+
+
+    }
+
+    //BENDRAS UI atnaujinimas – turi būti po viso switch
+    UpdateTurnText();
+    await InvokeAsync(StateHasChanged);
+}
+
+
 
     private void HandleRemoteAttack(GameAction action)
     {
@@ -298,10 +501,8 @@ else
         var val = int.Parse(action.Data["value"]);
         var card = opponent!.Hand.FirstOrDefault(c => c.Suit == suit && c.Value == val);
         if (card != null)
-        {
             game!.Attack(opponent!, card);
-        }
-        // po puolimo – dabar ginasi kitas
+
         myTurn = (game!.State.Defender == me);
     }
 
@@ -312,29 +513,14 @@ else
         var dsuit = Enum.Parse<Suit>(action.Data["suit"]);
         var dval = int.Parse(action.Data["value"]);
 
-        // Saugiai randame atakos kortą ant stalo
         var atkCard = game!.State.TableCards.Keys.FirstOrDefault(c => c.Suit == asuit && c.Value == aval);
-        if (atkCard == null)
-        {
-            // dar nepriėmė puolimo? tuomet nieko nedarom – saugiklis nuo nulaužimo
-            return;
-        }
+        if (atkCard == null) return;
 
-        // Saugiai randame gynybos kortą iš oponento rankos
         var defCard = opponent!.Hand.FirstOrDefault(c => c.Suit == dsuit && c.Value == dval);
-        if (defCard == null)
-        {
-            return;
-        }
+        if (defCard == null) return;
 
-        // Vykdom gynybą tik jei engine sutinka
-        var ok = game.Defend(opponent!, atkCard, defCard);
-        if (!ok)
-        {
-            return;
-        }
+        if (!game.Defend(opponent!, atkCard, defCard)) return;
 
-        // Po gynybos – ėjimas vėl pas atakuotoją (gali pridėti kortų arba baigti ėjimą)
         myTurn = (game!.State.Attacker == me);
     }
 
@@ -355,19 +541,17 @@ else
         return new string(Enumerable.Repeat(chars, length)
             .Select(s => s[rnd.Next(s.Length)]).ToArray());
     }
-    private async Task RefreshUI() //ZAIDEJO ISTORIJA REIKES PATIKRINT AR VEIKIA
+
+    private async Task RefreshUI()
     {
-        // Patikriname ar žaidimas baigtas ir dar nebuvo išsiųsta statistika
         if (game?.State?.IsGameOver == true && !statsSent)
         {
-            statsSent = true; // vieną kartą siunčiame statistiką
-
+            statsSent = true;
             bool playerWon = me!.Hand.Count == 0;
             var result = playerWon ? "winner" : "loser";
 
             Console.WriteLine($"Game over. PlayerWon: {playerWon}");
 
-            // Jei turi UserSession arba kitą ID, siųsti į serverį
             if (UserSession.UserId > 0)
             {
                 HttpResponseMessage response;
@@ -390,13 +574,11 @@ else
                 }
             }
 
-            // Nukreipiame į gameover puslapį
             NavigationManager.NavigateTo($"/gameover/{result}");
             await InvokeAsync(StateHasChanged);
             return;
         }
 
-        // Atnaujiname UI
         await InvokeAsync(StateHasChanged);
     }
 }
