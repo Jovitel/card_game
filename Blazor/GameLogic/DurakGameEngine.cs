@@ -153,44 +153,36 @@ namespace card_game.GameLogic // nurodo, kad klasė priklauso žaidimo logikos v
         // funkcija, kuri užbaigia ėjimą (kai gynėjas paima kortas arba visos atakos atmuštos)
         public void EndTurn(bool defenderPickedUp)
         {
-            // jei gynėjas paima kortas nuo stalo
-            if (defenderPickedUp)
-            {
-                // visos kortos ant stalo pereina gynėjui
-                foreach (var pair in State.TableCards)
-                {
-                    State.Defender.ReceiveCard(pair.Key);
-                    if (pair.Value != null)
-                        State.Defender.ReceiveCard(pair.Value);
-                }
-            }
-
-            // stalas išvalomas
+            // Išvalome stalą
             State.TableCards.Clear();
 
-            // papildomos žaidėjų rankos kortomis iš kaladės
+            // Papildome rankas kortomis iš kaladės (visada nuo atakuotojo)
             RefillHands();
 
-            // jei gynėjas paėmė kortas
             if (defenderPickedUp)
             {
-                // atakuotojas lieka tas pats, o gynėjas keičiamas į sekantį žaidėją
-                State.CurrentDefenderIndex = (State.CurrentDefenderIndex + 1) % State.Players.Count;
+                // Gynėjas pasiėmė kortas:
+                // 2 žaidėjų žaidime atakuotojas lieka tas pats,
+                // gynėjas taip pat lieka tas pats – todėl indeksų nekeičiam.
             }
             else
             {
-                // jei gynėjas atmušė visas kortas – jis tampa nauju atakuotoju
+                // Gynėjas apsigynė:
+                // Dabar jis tampa nauju atakuotoju,
+                // o buvęs atakuotojas tampa gynėju.
                 State.CurrentAttackerIndex = State.CurrentDefenderIndex;
                 State.CurrentDefenderIndex = (State.CurrentAttackerIndex + 1) % State.Players.Count;
             }
 
-            // atnaujinami dabartiniai atakuotojas ir gynėjas
+            // Atnaujiname dabartinius atakuotoją ir gynėją
             State.Attacker = State.Players[State.CurrentAttackerIndex];
             State.Defender = State.Players[State.CurrentDefenderIndex];
 
-            // patikrinama, ar žaidimas nepasibaigė
+            // Patikriname, ar žaidimas nepasibaigė
             CheckGameOver();
         }
+
+
 
         // funkcija, kuri papildomai duoda kortų žaidėjams po kiekvieno ėjimo
         private void RefillHands()
