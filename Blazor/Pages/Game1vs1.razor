@@ -2,8 +2,8 @@
 @page "/game/1vs1/{JoinCode?}"
 @layout MainLayout
 @using card_game.GameLogic
-@using card_game.Services
 @using card_game.GameDesign
+@using card_game.Services
 @using CardGame.Shared.Models
 @using System.Text.Json
 @inject GameClientService GameClient
@@ -11,67 +11,117 @@
 @inject UserSession UserSession
 @inject NavigationManager NavigationManager
 
-<h3>Durak 1vs1 Online</h3>
+<div class="page-wrapper">
+    @if (!connected)
+    {
+        <p>Jungiamasi prie serverio...</p>
+    }
+    else if (!engineReady || game == null || me == null || opponent == null)
+    {
+        <div class="waiting-container">
+            <p class="waiting-text">Laukiama kito žaidėjo...</p>
+            <p class="join-code-label">Kodas:</p>
+            <p class="join-code">@roomCode</p>
+        </div>
+    }
+    else
+    {
+        <!-- Viršuje: oponentas -->
+        <div class="multi-opponents">
+            <div class="opponent-block">
+                <div class="opponent-info-bar">
+                    <div class="opponent-avatar"></div>
+                    <span class="opponent-label">@opponent!.Name</span>
+                </div>
 
-@if (!connected)
-{
-    <p>Jungiamasi prie serverio...</p>
-}
-else if (!engineReady)
-{
-    <p>Laukiama kito žaidėjo... Kodas: <b>@roomCode</b></p>
-}
-else
-{
-    <h4>@turnText</h4>
+                <div class="opponent-hand-small">
+                    @for (int i = 0; i < opponent!.Hand.Count; i++)
+                    {
+                        <div class="card-small">
+                            <BackCard />
+                        </div>
+                    }
+                </div>
+            </div>
+        </div>
 
-    <div class="top-hand">
-        <div class="card-row">
-            @foreach (var card in opponent!.Hand)
+        <!-- Mygtukai -->
+        <div class="turn-buttons">
+            <button class="btn btn-end-turn" @onclick="EndTurn"
+                disabled="@(!myTurn || !game.CanEndTurn(me) || game.State.IsGameOver)">
+                Baigti ėjimą
+            </button>
+
+            <button class="btn btn-warning" @onclick="PickUpCards"
+                disabled="@(!myTurn || game?.State.Defender != me || me.Hand.Count == 0)">
+                Paimti kortas
+            </button>
+        </div>
+
+        <!-- Kortos ant stalo -->
+        <div class="table-cards">
+            @if (game?.State?.TableCards != null && game.State.TableCards.Count > 0)
             {
-                <GameCard Card="card" Disabled="true" />
+                var tableSnapshot = game.State.TableCards.ToList();
+
+                @for (int i = 0; i < 6; i++)
+                {
+                    <div class="table-pair">
+                        @if (i < tableSnapshot.Count)
+                        {
+                            var pair = tableSnapshot[i];
+                            <GameCard Card="@pair.Key" Disabled="true" class="attack-card" />
+                            @if (pair.Value != null)
+                            {
+                                <GameCard Card="@pair.Value" Disabled="true" class="defend-card" />
+                            }
+                            else
+                            {
+                                <div class="defend-placeholder"></div>
+                            }
+                        }
+                    </div>
+                }
             }
         </div>
-    </div>
 
-    <div class="table-area">
-        @foreach (var pair in game!.State.TableCards)
+        <!-- Kaladė + eilės info -->
+        <div class="deck-wrapper">
+            <DeckView RemainingCardsCount="game?.State?.Deck?.CardsLeft ?? 0"
+                TrumpCard="game?.State?.Deck?.PeekBottomCard()" />
+
+            <h4 class="turn-info">@turnText</h4>
+        </div>
+
+        <!-- Žaidėjo ranka -->
+        @if (me?.Hand != null && game?.State != null)
         {
-            <div class="card-pair">
-                <GameCard Card="@pair.Key" Disabled="true" />
-                @if (pair.Value != null)
+            <div class="card-row player-hand">
+                @for (int i = 0; i < me.Hand.Count; i++)
                 {
-                    <GameCard Card="@pair.Value" Disabled="true" />
-                }
-                else
-                {
-                    <div class="defend-placeholder">•••</div>
+                    var card = me.Hand[i];
+                    bool canPlay =
+                    myTurn &&
+                    (((game?.State?.Attacker == me) && game?.CanAttackWith(me, card) == true) ||
+                    ((game?.State?.Defender == me) && game?.CanDefendWith(me, card) == true));
+
+                    <div class="@(canPlay ? "" : "tooltip-container")" data-tooltip="@(canPlay ? "" : "Negalima naudoti kortos")"
+                        style="--index:@i; --count:@me.Hand.Count;">
+                        <GameCard Card="card" Disabled="!canPlay" OnPlay="() => PlayCard(card)" />
+                    </div>
                 }
             </div>
         }
-    </div>
 
-    <div class="bottom-hand">
-        <div class="card-row">
-            @foreach (var card in me!.Hand)
-            {
-                bool canPlay =
-                    myTurn &&
-                    ((game!.State.Attacker == me && game.CanAttackWith(me, card)) ||
-                    (game.State.Defender == me && game.CanDefendWith(me, card)));
 
-                <GameCard Card="card" Disabled="!canPlay" OnPlay="() => PlayCard(card)" />
-            }
+        <!-- Žaidėjo info -->
+        <div class="player-info-bar">
+            <div class="profile-placeholder"></div>
+            <span class="opponent-label" style="margin-left:10px;">@me?.Name</span>
         </div>
-    </div>
+    }
+</div>
 
-    <button class="btn btn-primary" @onclick="EndTurn" disabled="@(!myTurn)">
-        Baigti ėjimą
-    </button>
-    <button class="btn btn-warning" @onclick="PickUpCards" disabled="@(!myTurn || game?.State.Defender != me)">
-    Paimti kortas
-</button>
-}
 
 @code {
     [Parameter] public string? JoinCode { get; set; }
@@ -86,7 +136,6 @@ else
     private bool myTurn = false;
     private string turnText = "";
     private bool statsSent = false;
-
     private bool isHost => string.IsNullOrEmpty(JoinCode);
 
     protected override async Task OnInitializedAsync()
@@ -100,7 +149,7 @@ else
         if (isHost)
         {
             roomCode = GenerateRoomCode();
-            await GameClient.CreateRoomAsync(roomCode);
+            await GameClient.CreateRoomAsync(roomCode, "1v1");
         }
         else
         {
@@ -115,7 +164,8 @@ else
     {
         if (!isHost) return;
 
-        me = new Player("P1");
+        var myName = UserSession?.Username ?? "P1";
+        me = new Player(myName);
         opponent = new Player("P2");
 
         game = new DurakGameEngine(new List<Player> { me, opponent });
@@ -130,37 +180,40 @@ else
 
     private async void SendInitState()
     {
+        var trumpCard = game!.State.Deck!.PeekBottomCard();
+
         var initAction = new GameAction
         {
             Action = "INIT",
             Data =
-            {
-                ["trump"] = game!.State.TrumpSuit.ToString(),
-                ["p1cards"] = JsonSerializer.Serialize(me!.Hand),
-                ["p2cards"] = JsonSerializer.Serialize(opponent!.Hand)
-            }
+{
+["trumpCard"] = JsonSerializer.Serialize(trumpCard),
+["p1cards"] = JsonSerializer.Serialize(me!.Hand),
+["p2cards"] = JsonSerializer.Serialize(opponent!.Hand)
+}
         };
 
         await GameClient.SendGameActionAsync(initAction);
     }
 
+
     private void ApplyInit(GameAction a)
     {
         if (isHost || engineReady) return;
 
-        me = new Player("P2");
-        opponent = new Player("P1");
+        var myName = UserSession?.Username ?? "P2";
+        me = new Player(myName);
         game = new DurakGameEngine(new List<Player> { opponent!, me! });
 
-        // hosto duomenys
         opponent!.Hand = JsonSerializer.Deserialize<List<Card>>(a.Data["p1cards"])!;
         me!.Hand = JsonSerializer.Deserialize<List<Card>>(a.Data["p2cards"])!;
-        game.State.TrumpSuit = Enum.Parse<Suit>(a.Data["trump"]);
 
-        // išjungiam kaladės naudojimą šiame kliente
+        var trumpCard = JsonSerializer.Deserialize<Card>(a.Data["trumpCard"])!;
+        game.State.TrumpSuit = trumpCard.Suit;
+
+        // Sukuriam dummy kaladę, bet su teisingu kozeriu
         game.State.Deck = new Deck();
-        game.State.Deck = new Deck(); // dummy deck, guest pusėje nenaudojamas
-
+        game.State.Deck.OverrideTrumpCard(trumpCard);
 
         engineReady = true;
         UpdateTurnText();
@@ -180,10 +233,10 @@ else
         {
             Action = "SETTURN",
             Data =
-            {
-                ["myTurn"] = (!hostStarts).ToString(),
-                ["starter"] = starterTag
-            }
+{
+["myTurn"] = (!hostStarts).ToString(),
+["starter"] = starterTag
+}
         };
 
         await GameClient.SendGameActionAsync(turnAction);
@@ -193,8 +246,8 @@ else
     private void ForceStarter(string starterTag)
     {
         Player starter = starterTag == "P1"
-            ? (isHost ? me : opponent)!
-            : (isHost ? opponent : me)!;
+        ? (isHost ? me : opponent)!
+        : (isHost ? opponent : me)!;
 
         var idx = game!.State.Players.IndexOf(starter);
         game.State.CurrentAttackerIndex = idx;
@@ -220,12 +273,12 @@ else
                 {
                     Action = "DEFEND",
                     Data =
-                    {
-                        ["attackSuit"] = attackCard.Suit.ToString(),
-                        ["attackValue"] = attackCard.Value.ToString(),
-                        ["suit"] = card.Suit.ToString(),
-                        ["value"] = card.Value.ToString()
-                    }
+{
+["attackSuit"] = attackCard.Suit.ToString(),
+["attackValue"] = attackCard.Value.ToString(),
+["suit"] = card.Suit.ToString(),
+["value"] = card.Value.ToString()
+}
                 };
 
                 await GameClient.SendGameActionAsync(act);
@@ -244,256 +297,242 @@ else
             {
                 Action = "ATTACK",
                 Data =
-                {
-                    ["suit"] = card.Suit.ToString(),
-                    ["value"] = card.Value.ToString()
-                }
+{
+["suit"] = card.Suit.ToString(),
+["value"] = card.Value.ToString()
+}
             };
             await GameClient.SendGameActionAsync(action);
             await InvokeAsync(StateHasChanged);
         }
     }
 
-private async Task PickUpCards()
-{
-    if (game == null || me == null) return;
-    if (!myTurn) return;
-    if (game.State.Defender != me) return;
-
-    // Paimam visas kortas nuo stalo
-    foreach (var pair in game.State.TableCards)
+    private async Task PickUpCards()
     {
-        me.Hand.Add(pair.Key);
-        if (pair.Value != null)
-            me.Hand.Add(pair.Value);
-    }
+        if (game == null || me == null) return;
+        if (!myTurn) return;
+        if (game.State.Defender != me) return;
 
-    game.State.TableCards.Clear();
-
-    if (isHost)
-    {
-        game.EndTurn(true);
-
-        var act = new GameAction
+        // Paimam visas kortas nuo stalo
+        foreach (var pair in game.State.TableCards)
         {
-            Action = "PICKUP",
-            Data =
-            {
-                ["p1cards"] = JsonSerializer.Serialize(game.State.Players[0].Hand),
-                ["p2cards"] = JsonSerializer.Serialize(game.State.Players[1].Hand),
-                ["nextAttacker"] = game.State.Attacker.Name,
-                ["nextDefender"] = game.State.Defender.Name,
-                ["trump"] = game.State.TrumpSuit.ToString()
-            }
-        };
+            me.Hand.Add(pair.Key);
+            if (pair.Value != null)
+                me.Hand.Add(pair.Value);
+        }
 
-        await GameClient.SendGameActionAsync(act);
+        game.State.TableCards.Clear();
 
-        //Iškart atnaujiname vietinį UI (kad nesulauktume SignalR round-trip)
-        ApplyAction(act);
-    }
-    else
-    {
-        // Guest prašo hosto patvirtinti pickup
-        var request = new GameAction { Action = "REQUEST_PICKUP" };
-        await GameClient.SendGameActionAsync(request);
-    }
-
-    myTurn = false;
-    UpdateTurnText();
-    await InvokeAsync(StateHasChanged);
-}
-
-
-private async Task EndTurn()
-{
-    if (!myTurn || game == null || me == null) return;
-    if (!game.CanEndTurn(me!)) return;
-
-    if (isHost)
-    {
-        // Hostas turi tikrą kaladę, todėl čia išdalina kortas
-        game.EndTurn(false);
-
-        // siunčiam viską abiem pusėm
-        var act = new GameAction
+        if (isHost)
         {
-            Action = "ENDTURN",
-            Data =
+            game.EndTurn(true);
+
+            var act = new GameAction
             {
-                ["nextAttacker"] = game.State.Attacker.Name,
-                ["nextDefender"] = game.State.Defender.Name,
-                ["p1cards"] = JsonSerializer.Serialize(game.State.Players[0].Hand),
-                ["p2cards"] = JsonSerializer.Serialize(game.State.Players[1].Hand),
-                ["trump"] = game.State.TrumpSuit.ToString()
-            }
-        };
-
-        await GameClient.SendGameActionAsync(act);
-    }
-    else
-    {
-        // Guest neturi deck – tik prašo hosto užbaigti ėjimą
-        var request = new GameAction { Action = "REQUEST_ENDTURN" };
-        await GameClient.SendGameActionAsync(request);
-    }
-
-    myTurn = false;
-    UpdateTurnText();
-    await InvokeAsync(StateHasChanged);
-}
-
-
-private async void ApplyAction(GameAction action)
+                Action = "PICKUP",
+                Data =
 {
-    switch (action.Action)
+["p1cards"] = JsonSerializer.Serialize(game.State.Players[0].Hand),
+["p2cards"] = JsonSerializer.Serialize(game.State.Players[1].Hand),
+["nextAttacker"] = game.State.Attacker.Name,
+["nextDefender"] = game.State.Defender.Name,
+["trump"] = game.State.TrumpSuit.ToString()
+}
+            };
+
+            await GameClient.SendGameActionAsync(act);
+
+            // Iškart atnaujiname vietinį UI
+            ApplyAction(act);
+        }
+        else
+        {
+            // Guest prašo hosto patvirtinti pickup
+            var request = new GameAction { Action = "REQUEST_PICKUP" };
+            await GameClient.SendGameActionAsync(request);
+        }
+
+        myTurn = false;
+        UpdateTurnText();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task EndTurn()
     {
-        case "INIT":
-            ApplyInit(action);
-            break;
+        if (!myTurn || game == null || me == null) return;
+        if (!game.CanEndTurn(me!)) return;
 
-        case "SETTURN":
-            if (!isHost)
-                myTurn = bool.Parse(action.Data["myTurn"]);
-            if (action.Data.TryGetValue("starter", out var starterTag))
-                ForceStarter(starterTag);
-            break;
+        if (isHost)
+        {
+            game.EndTurn(false);
 
-        case "ATTACK":
-            HandleRemoteAttack(action);
-            break;
-
-        case "DEFEND":
-            HandleRemoteDefend(action);
-            break;
-
-        case "REQUEST_ENDTURN":
-            if (isHost && game != null)
+            var act = new GameAction
             {
-                game.EndTurn(false);
+                Action = "ENDTURN",
+                Data =
+{
+["nextAttacker"] = game.State.Attacker.Name,
+["nextDefender"] = game.State.Defender.Name,
+["p1cards"] = JsonSerializer.Serialize(game.State.Players[0].Hand),
+["p2cards"] = JsonSerializer.Serialize(game.State.Players[1].Hand),
+["trump"] = game.State.TrumpSuit.ToString()
+}
+            };
 
-                var act = new GameAction
+            await GameClient.SendGameActionAsync(act);
+        }
+        else
+        {
+            var request = new GameAction { Action = "REQUEST_ENDTURN" };
+            await GameClient.SendGameActionAsync(request);
+        }
+
+        myTurn = false;
+        UpdateTurnText();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async void ApplyAction(GameAction action)
+    {
+        switch (action.Action)
+        {
+            case "INIT":
+                ApplyInit(action);
+                break;
+
+            case "SETTURN":
+                if (!isHost)
+                    myTurn = bool.Parse(action.Data["myTurn"]);
+                if (action.Data.TryGetValue("starter", out var starterTag))
+                    ForceStarter(starterTag);
+                break;
+
+            case "ATTACK":
+                HandleRemoteAttack(action);
+                break;
+
+            case "DEFEND":
+                HandleRemoteDefend(action);
+                break;
+
+            case "REQUEST_ENDTURN":
+                if (isHost && game != null)
                 {
-                    Action = "ENDTURN",
-                    Data =
+                    game.EndTurn(false);
+
+                    var act = new GameAction
                     {
-                        ["nextAttacker"] = game.State.Attacker.Name,
-                        ["nextDefender"] = game.State.Defender.Name,
-                        ["p1cards"] = JsonSerializer.Serialize(game.State.Players[0].Hand),
-                        ["p2cards"] = JsonSerializer.Serialize(game.State.Players[1].Hand),
-                        ["trump"] = game.State.TrumpSuit.ToString()
-                    }
-                };
-                await GameClient.SendGameActionAsync(act);
-            }
-            break;
+                        Action = "ENDTURN",
+                        Data =
+{
+["nextAttacker"] = game.State.Attacker.Name,
+["nextDefender"] = game.State.Defender.Name,
+["p1cards"] = JsonSerializer.Serialize(game.State.Players[0].Hand),
+["p2cards"] = JsonSerializer.Serialize(game.State.Players[1].Hand),
+["trump"] = game.State.TrumpSuit.ToString()
+}
+                    };
+                    await GameClient.SendGameActionAsync(act);
+                }
+                break;
 
-        case "ENDTURN":
-        {
-            if (action.Data.TryGetValue("nextAttacker", out var attName) &&
-                action.Data.TryGetValue("nextDefender", out var defName))
-            {
-                var att = game!.State.Players.FirstOrDefault(p => p.Name == attName);
-                var def = game.State.Players.FirstOrDefault(p => p.Name == defName);
-                if (att != null && def != null)
+            case "ENDTURN":
                 {
+                    if (action.Data.TryGetValue("nextAttacker", out var attName) &&
+                    action.Data.TryGetValue("nextDefender", out var defName))
+                    {
+                        var att = game!.State.Players.FirstOrDefault(p => p.Name == attName);
+                        var def = game.State.Players.FirstOrDefault(p => p.Name == defName);
+                        if (att != null && def != null)
+                        {
+                            game.State.Attacker = att;
+                            game.State.Defender = def;
+                            game.State.CurrentAttackerIndex = game.State.Players.IndexOf(att);
+                            game.State.CurrentDefenderIndex = game.State.Players.IndexOf(def);
+                        }
+                    }
+
+                    if (action.Data.TryGetValue("p1cards", out var p1json) &&
+                    action.Data.TryGetValue("p2cards", out var p2json))
+                    {
+                        var p1Cards = JsonSerializer.Deserialize<List<Card>>(p1json)!;
+                        var p2Cards = JsonSerializer.Deserialize<List<Card>>(p2json)!;
+
+                        var p1 = game!.State.Players.First(p => p.Name == "P1");
+                        var p2 = game.State.Players.First(p => p.Name == "P2");
+
+                        p1.Hand = p1Cards;
+                        p2.Hand = p2Cards;
+                    }
+
+                    if (action.Data.TryGetValue("trump", out var trumpSuit))
+                        game!.State.TrumpSuit = Enum.Parse<Suit>(trumpSuit);
+
+                    game!.State.TableCards.Clear();
+                    myTurn = (game!.State.Attacker == me);
+                    break;
+                }
+
+            case "REQUEST_PICKUP":
+                if (isHost && game != null)
+                {
+                    var defender = game.State.Defender;
+                    foreach (var pair in game.State.TableCards)
+                    {
+                        defender.Hand.Add(pair.Key);
+                        if (pair.Value != null)
+                            defender.Hand.Add(pair.Value);
+                    }
+
+                    game.EndTurn(true);
+
+                    var act = new GameAction
+                    {
+                        Action = "PICKUP",
+                        Data =
+{
+["p1cards"] = JsonSerializer.Serialize(game.State.Players[0].Hand),
+["p2cards"] = JsonSerializer.Serialize(game.State.Players[1].Hand),
+["nextAttacker"] = game.State.Attacker.Name,
+["nextDefender"] = game.State.Defender.Name,
+["trump"] = game.State.TrumpSuit.ToString()
+}
+                    };
+
+                    await GameClient.SendGameActionAsync(act);
+                }
+                break;
+
+            case "PICKUP":
+                {
+                    var p1 = game!.State.Players.First(p => p.Name == "P1");
+                    var p2 = game.State.Players.First(p => p.Name == "P2");
+
+                    p1.Hand = JsonSerializer.Deserialize<List<Card>>(action.Data["p1cards"])!;
+                    p2.Hand = JsonSerializer.Deserialize<List<Card>>(action.Data["p2cards"])!;
+                    game.State.TableCards.Clear();
+
+                    var attName = action.Data["nextAttacker"];
+                    var defName = action.Data["nextDefender"];
+
+                    var att = game.State.Players.First(p => p.Name == attName);
+                    var def = game.State.Players.First(p => p.Name == defName);
                     game.State.Attacker = att;
                     game.State.Defender = def;
                     game.State.CurrentAttackerIndex = game.State.Players.IndexOf(att);
                     game.State.CurrentDefenderIndex = game.State.Players.IndexOf(def);
+
+                    myTurn = (game.State.Attacker == me) || (game.State.Defender == me && game.State.TableCards.Count == 0);
+                    UpdateTurnText();
+
+                    await InvokeAsync(StateHasChanged);
+                    break;
                 }
-            }
-
-            if (action.Data.TryGetValue("p1cards", out var p1json) &&
-                action.Data.TryGetValue("p2cards", out var p2json))
-            {
-                var p1Cards = JsonSerializer.Deserialize<List<Card>>(p1json)!;
-                var p2Cards = JsonSerializer.Deserialize<List<Card>>(p2json)!;
-
-                var p1 = game!.State.Players.First(p => p.Name == "P1");
-                var p2 = game.State.Players.First(p => p.Name == "P2");
-
-                p1.Hand = p1Cards;
-                p2.Hand = p2Cards;
-            }
-
-            if (action.Data.TryGetValue("trump", out var trumpSuit))
-                game!.State.TrumpSuit = Enum.Parse<Suit>(trumpSuit);
-
-            game!.State.TableCards.Clear();
-            myTurn = (game!.State.Attacker == me);
-            break;
-        }
-        case "REQUEST_PICKUP":
-    if (isHost && game != null)
-    {
-        // Hostas atlieka pickup logiką
-        var defender = game.State.Defender;
-        foreach (var pair in game.State.TableCards)
-        {
-            defender.Hand.Add(pair.Key);
-            if (pair.Value != null)
-                defender.Hand.Add(pair.Value);
         }
 
-        game.EndTurn(true);
-
-        var act = new GameAction
-        {
-            Action = "PICKUP",
-            Data =
-            {
-                ["p1cards"] = JsonSerializer.Serialize(game.State.Players[0].Hand),
-                ["p2cards"] = JsonSerializer.Serialize(game.State.Players[1].Hand),
-                ["nextAttacker"] = game.State.Attacker.Name,
-                ["nextDefender"] = game.State.Defender.Name,
-                ["trump"] = game.State.TrumpSuit.ToString()
-            }
-        };
-
-        await GameClient.SendGameActionAsync(act);
+        UpdateTurnText();
+        await InvokeAsync(StateHasChanged);
     }
-    break;
-
-    case "PICKUP":
-{
-    // atnaujinam žaidimo būseną
-    var p1 = game!.State.Players.First(p => p.Name == "P1");
-    var p2 = game.State.Players.First(p => p.Name == "P2");
-
-    p1.Hand = JsonSerializer.Deserialize<List<Card>>(action.Data["p1cards"])!;
-    p2.Hand = JsonSerializer.Deserialize<List<Card>>(action.Data["p2cards"])!;
-    game.State.TableCards.Clear();
-
-    // iš JSON ateina kas yra atakuotojas/gynėjas vardais
-    var attName = action.Data["nextAttacker"];
-    var defName = action.Data["nextDefender"];
-
-    var att = game.State.Players.First(p => p.Name == attName);
-    var def = game.State.Players.First(p => p.Name == defName);
-    game.State.Attacker = att;
-    game.State.Defender = def;
-    game.State.CurrentAttackerIndex = game.State.Players.IndexOf(att);
-    game.State.CurrentDefenderIndex = game.State.Players.IndexOf(def);
-
-    //Nustatom kieno eilė
-    // jei dabar aš esu atakuotojas – tai mano ėjimas
-    myTurn = (game.State.Attacker == me) || (game.State.Defender == me && game.State.TableCards.Count == 0);
-    UpdateTurnText();
-
-    await InvokeAsync(StateHasChanged);
-    break;
-}
-
-
-    }
-
-    //BENDRAS UI atnaujinimas – turi būti po viso switch
-    UpdateTurnText();
-    await InvokeAsync(StateHasChanged);
-}
-
-
 
     private void HandleRemoteAttack(GameAction action)
     {
@@ -539,7 +578,7 @@ private async void ApplyAction(GameAction action)
     {
         const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
         return new string(Enumerable.Repeat(chars, length)
-            .Select(s => s[rnd.Next(s.Length)]).ToArray());
+        .Select(s => s[rnd.Next(s.Length)]).ToArray());
     }
 
     private async Task RefreshUI()
@@ -583,10 +622,349 @@ private async void ApplyAction(GameAction action)
     }
 }
 
+
 <style>
-.card-row { display:flex; justify-content:center; gap:8px; margin:10px; }
-.table-area { display:flex; justify-content:center; gap:50px; margin:25px; }
-.card-pair { display:flex; flex-direction:column; align-items:center; }
-.top-hand, .bottom-hand { margin:15px; text-align:center; }
-.defend-placeholder { width:60px; height:80px; display:flex; align-items:center; justify-content:center; color:#fff;}
+    .page-wrapper {
+        background-color: #2c425a;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: space-between;
+        box-sizing: border-box;
+        padding: 20px;
+    }
+
+    /* --- kelių oponentų rankos --- */
+    .multi-opponents {
+        position: fixed;
+        top: 10px;
+        /* buvo 40px */
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        flex-wrap: nowrap;
+        gap: 120px;
+        /* šiek tiek daugiau erdvės tarp žaidėjų */
+        width: 100%;
+        z-index: 10;
+    }
+
+    .opponent-hand-small {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        position: relative;
+        flex-wrap: nowrap;
+        transform: scale(0.85);
+
+    }
+
+    /* mažesnės kortos */
+    .opponent-block {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .opponent-info-bar {
+        background-color: #a2c2de;
+        border: 2px solid #f0e1b4;
+        border-radius: 15px;
+        width: 200px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.25);
+    }
+
+    .opponent-avatar {
+        width: 20px;
+        height: 20px;
+        background-color: #ddd;
+        border-radius: 50%;
+        border: 1px solid #bbb;
+    }
+
+    .opponent-label {
+        color: #1c2d3e;
+        font-size: 13px;
+        font-weight: 600;
+    }
+
+    .card-small {
+        width: 40px;
+        /* buvo 45px */
+        height: 62px;
+        /* buvo 70px */
+        margin: 0;
+    }
+
+    /* žaidėjo vardas virš kortų */
+    .opponent-name {
+        position: absolute;
+        top: -28px;
+        color: #f0e1b4;
+        font-size: 14px;
+        font-weight: 600;
+        text-align: center;
+        width: 100%;
+    }
+
+    /* --- stalo zonos --- */
+    /* --- Kortų poros ant stalo --- */
+    .table-cards {
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        gap: 45px;
+        margin-top: 200px;
+        /* šiek tiek žemiau nei oponentai */
+        margin-bottom: 120px;
+        flex-wrap: nowrap;
+    }
+
+    .table-pair {
+        position: relative;
+        width: 110px;
+        height: 160px;
+        /* užtikrina vietos abiem kortoms */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* --- Atakos korta --- */
+    .attack-card {
+        width: 100px;
+        height: 150px;
+        position: relative;
+        z-index: 5;
+    }
+
+    /* --- Gynybos korta --- */
+    .defend-card {
+        position: absolute;
+        top: 40px;
+        /* pakelia virš atakos */
+        left: 25px;
+        /* paslenka šiek tiek į dešinę */
+        z-index: 10;
+        /* kad būtų virš atakos kortos */
+    }
+
+
+
+    /* --- žaidėjo ranka --- */
+    .player-hand {
+        position: fixed;
+        bottom: 70px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        justify-content: center;
+        gap: 0;
+        perspective: 600px;
+        height: 140px;
+        /* buvo 160px */
+        z-index: 10;
+    }
+
+    /* --- mygtukai --- */
+    .turn-buttons {
+        position: fixed;
+        right: 30px;
+        bottom: 100px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        z-index: 20;
+    }
+
+    /* --- Vieningas mygtukų stilius --- */
+    .turn-buttons button {
+        padding: 12px 24px;
+        font-weight: 600;
+        font-size: 16px;
+        border-radius: 10px;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s ease-in-out;
+        color: #fff;
+        background-color: #3a5a8c;
+        /* tamsiai mėlynas tonas */
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.25);
+    }
+
+    /* --- Hover efektas (aktyvus) --- */
+    .turn-buttons button:hover:not(:disabled) {
+        background-color: #507bc0;
+        /* šviesesnis mėlynas */
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    /* --- Paspaudimo efektas --- */
+    .turn-buttons button:active:not(:disabled) {
+        transform: translateY(0);
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.25);
+    }
+
+    /* --- Neaktyvūs (disabled) --- */
+    .turn-buttons button:disabled {
+        background-color: #5f728f;
+        color: #dcdcdc;
+        cursor: not-allowed;
+        opacity: 0.7;
+        box-shadow: none;
+    }
+
+    /* --- Jei nori išlaikyti simbolinį skirtumą tarp dviejų mygtukų --- */
+    .btn-end-turn {
+        background-color: #3a5a8c;
+        /* mėlynas */
+    }
+
+    .btn-warning {
+        background-color: #d37b2a;
+        /* oranžinis variantas */
+    }
+
+    .btn-warning:hover:not(:disabled) {
+        background-color: #e0913e;
+    }
+
+    /* --- kozerio korta ir eilės informacija --- */
+    .deck-wrapper {
+        position: fixed;
+        bottom: 100px;
+        left: 40px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+        width: 140px;
+        min-height: 200px;
+        z-index: 15;
+    }
+
+    .turn-info {
+        color: #f0e1b4;
+        font-size: 18px;
+        font-weight: 500;
+        text-align: center;
+        white-space: nowrap;
+        min-height: 24px;
+        line-height: 24px;
+        position: relative;
+        z-index: 25;
+        text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.5);
+    }
+
+
+    /* --- žaidėjo info bar --- */
+    .player-info-bar {
+        position: fixed;
+        bottom: 5px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 55%;
+        height: 50px;
+        background-color: #a2c2de;
+        border-radius: 20px;
+        border: 2px solid #f0e1b4;
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        padding: 8px 16px;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+        z-index: 5;
+    }
+
+    /* žaidėjo avataras */
+    .profile-placeholder {
+        width: 40px;
+        /* buvo 50px */
+        height: 40px;
+        background-color: #ddd;
+        border-radius: 50%;
+        border: 2px solid #bbb;
+    }
+
+    /* --- Laukimo ekrano stilius --- */
+    .waiting-container {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        height: 80vh;
+        /* vertikaliai centre */
+        text-align: center;
+        color: #ffffff;
+    }
+
+    .waiting-text {
+        font-size: 24px;
+        font-weight: 600;
+        margin-bottom: 20px;
+        color: #f0e1b4;
+        text-shadow: 0 2px 6px rgba(0, 0, 0, 0.4);
+    }
+
+    .join-code-label {
+        font-size: 20px;
+        margin: 0;
+        color: #ffffff;
+        letter-spacing: 1px;
+    }
+
+    .join-code {
+        font-size: 40px;
+        font-weight: bold;
+        color: #f0e1b4;
+        margin-top: 8px;
+        letter-spacing: 2px;
+        background-color: rgba(255, 255, 255, 0.1);
+        padding: 10px 20px;
+        border-radius: 10px;
+        border: 2px solid #f0e1b4;
+        text-shadow: 0 2px 5px rgba(0, 0, 0, 0.3);
+    }
+
+    /* Tooltip */
+    .tooltip-container {
+        position: relative;
+        cursor: not-allowed;
+    }
+
+    .tooltip-container[data-tooltip]:hover::after {
+        content: attr(data-tooltip);
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+        white-space: nowrap;
+        background-color: #56708c;
+        color: #f0e1b4;
+        padding: 6px 12px;
+        border-radius: 8px;
+        font-size: 13px;
+        z-index: 100;
+        margin-bottom: 9px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.2s ease, visibility 0.2s ease;
+    }
+
+    .tooltip-container[data-tooltip]:hover::after {
+        opacity: 1;
+        visibility: visible;
+    }
 </style>
