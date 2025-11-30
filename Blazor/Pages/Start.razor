@@ -1,47 +1,50 @@
 @page "/start"
 @layout MainLayout
-@using CardGame.Shared 
+@using CardGame.Shared.Models
 @inject UserSession UserSession
+@inject HttpClient Http
 
 <div class="page-wrapper">
     <div class="container">
         <div class="line">
             <div class="columns">
-                <div class="line"> 
-                    <input type="text" placeholder="photo" class="circle" readonly/>
+                <div class="line">
+                    <input type="text" placeholder="photo" class="circle" readonly />
                     <div class="column_1">
-                        <input type="text" 
-                            class="input-field" 
-                            readonly 
-                            value="@GetPlayerName()" />
-                        <input type="text" 
-                            class="input-field" 
-                            readonly 
-                            value="Wins: @UserSession.CurrentUser?.Wins" />
-                        <input type="text" 
-                            class="input-field" 
-                            readonly 
+                        <input type="text" class="input-field" readonly value="@GetPlayerName()" />
+                        <input type="text" class="input-field" readonly value="Wins: @UserSession.CurrentUser?.Wins" />
+                        <input type="text" class="input-field" readonly
                             value="Losses: @UserSession.CurrentUser?.Losses" />
                     </div>
                 </div>
                 <img src="images/durnius.png" alt="Žaidimo nuotrauka" class="top-image" />
                 <div>
-                    <div class="line_1"> 
+                    <div class="line_1">
                         <div class="column svg-buttons">
                             <NavLink class="btnn" href="/settings">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24">
-                                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M21 13v-2a1 1 0 0 0-1-1h-.757l-.707-1.707.535-.536a1 1 0 0 0 0-1.414l-1.414-1.414a1 1 0 0 0-1.414 0l-.536.535L14 4.757V4a1 1 0 0 0-1-1h-2a1 1 0 0 0-1 1v.757l-1.707.707-.536-.535a1 1 0 0 0-1.414 0L4.929 6.343a1 1 0 0 0 0 1.414l.536.536L4.757 10H4a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h.757l.707 1.707-.535.536a1 1 0 0 0 0 1.414l1.414 1.414a1 1 0 0 0 1.414 0l.536-.535 1.707.707V20a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1v-.757l1.707-.708.536.536a1 1 0 0 0 1.414 0l1.414-1.414a1 1 0 0 0 0-1.414l-.535-.536.707-1.707H20a1 1 0 0 0 1-1Z"/>
-                                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z"/>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none"
+                                    viewBox="0 0 24 24">
+                                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                                        stroke-width="2"
+                                        d="M21 13v-2a1 1 0 0 0-1-1h-.757l-.707-1.707.535-.536a1 1 0 0 0 0-1.414l-1.414-1.414a1 1 0 0 0-1.414 0l-.536.535L14 4.757V4a1 1 0 0 0-1-1h-2a1 1 0 0 0-1 1v.757l-1.707.707-.536-.535a1 1 0 0 0-1.414 0L4.929 6.343a1 1 0 0 0 0 1.414l.536.536L4.757 10H4a1 1 0 0 0-1 1v2a1 1 0 0 0 1 1h.757l.707 1.707-.535.536a1 1 0 0 0 0 1.414l1.414 1.414a1 1 0 0 0 1.414 0l.536-.535 1.707.707V20a1 1 0 0 0 1 1h2a1 1 0 0 0 1-1v-.757l1.707-.708.536.536a1 1 0 0 0 1.414 0l1.414-1.414a1 1 0 0 0 0-1.414l-.535-.536.707-1.707H20a1 1 0 0 0 1-1Z" />
+                                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                                        stroke-width="2" d="M12 15a3 3 0 1 0 0-6 3 3 0 0 0 0 6Z" />
                                 </svg>
                             </NavLink>
                             <NavLink class="btnn" href="/rules">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none" viewBox="0 0 24 24">
-                                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M9.529 9.988a2.502 2.502 0 1 1 5 .191A2.441 2.441 0 0 1 12 12.582V14m-.01 3.008H12M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z"/>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="none"
+                                    viewBox="0 0 24 24">
+                                    <path stroke="currentColor" stroke-linecap="round" stroke-linejoin="round"
+                                        stroke-width="2"
+                                        d="M9.529 9.988a2.502 2.502 0 1 1 5 .191A2.441 2.441 0 0 1 12 12.582V14m-.01 3.008H12M21 12a9 9 0 1 1-18 0 9 9 0 0 1 18 0Z" />
                                 </svg>
                             </NavLink>
                             <NavLink class="btnn" href="/friends">
-                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor" viewBox="0 0 24 24">
-                                    <path fill-rule="evenodd" d="M8 4a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm-2 9a4 4 0 0 0-4 4v1a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-1a4 4 0 0 0-4-4H6Zm7.25-2.095c.478-.86.75-1.85.75-2.905a5.973 5.973 0 0 0-.75-2.906 4 4 0 1 1 0 5.811ZM15.466 20c.34-.588.535-1.271.535-2v-1a5.978 5.978 0 0 0-1.528-4H18a4 4 0 0 1 4 4v1a2 2 0 0 1-2 2h-4.535Z" clip-rule="evenodd"/>
+                                <svg xmlns="http://www.w3.org/2000/svg" width="24" height="24" fill="currentColor"
+                                    viewBox="0 0 24 24">
+                                    <path fill-rule="evenodd"
+                                        d="M8 4a4 4 0 1 0 0 8 4 4 0 0 0 0-8Zm-2 9a4 4 0 0 0-4 4v1a2 2 0 0 0 2 2h8a2 2 0 0 0 2-2v-1a4 4 0 0 0-4-4H6Zm7.25-2.095c.478-.86.75-1.85.75-2.905a5.973 5.973 0 0 0-.75-2.906 4 4 0 1 1 0 5.811ZM15.466 20c.34-.588.535-1.271.535-2v-1a5.978 5.978 0 0 0-1.528-4H18a4 4 0 0 1 4 4v1a2 2 0 0 1-2 2h-4.535Z"
+                                        clip-rule="evenodd" />
                                 </svg>
                             </NavLink>
                         </div>
@@ -52,13 +55,35 @@
         <div class="columns">
             <div class="center-column">
                 <div class="square leaderboard">
-                    <button class="btn">Scoreboard</button>
-                    <div class="leader-row">1. PlayerOne</div>
-                    <div class="leader-row">2. PlayerTwo</div>
-                    <div class="leader-row">3. PlayerThree</div>
+                    <h3>Scoreboard</h3>
+
+                    @if (scoreboard == null)
+                    {
+                        <p>Kraunama...</p>
+                    }
+                    else if (!scoreboard.Any())
+                    {
+                        <p>Nėra duomenų.</p>
+                    }
+                    else
+                    {
+                        <div class="leaderboard-list">
+                            @foreach (var (player, index) in scoreboard.Select((p, i) => (p, i + 1)))
+                            {
+                                <div class="leader-row @(player.Id == UserSession.UserId ? "me" : "")">
+                                    <span class="rank">@index.</span>
+                                    <span class="name">@player.UserName</span>
+                                    <span class="score"> @player.Wins</span>
+                                    <span class="losses"> @player.Losses</span>
+                                </div>
+                            }
+                        </div>
+                    }
                 </div>
+
+
             </div>
-            <div class="center-column"> 
+            <div class="center-column">
                 <NavLink class="btn" href="/vs">Start game</NavLink>
                 <NavLink class="btn" href="/join">Join game</NavLink>
                 <NavLink class="btn" href="/">Leave</NavLink>
@@ -70,206 +95,271 @@
     </div>
 </div>
 @code {
-   private string GetPlayerName()
+    private string GetPlayerName()
     {
-        return UserSession.UserId > 0 
-            ? UserSession.CurrentUser?.UserName ?? "Guest"
-            : "Guest";
+        return UserSession.UserId > 0
+        ? UserSession.CurrentUser?.UserName ?? "Guest"
+        : "Guest";
+    }
+
+    private List<User> scoreboard = new();
+
+    protected override async Task OnInitializedAsync()
+    {
+        await LoadScoreboard();
+    }
+
+    private async Task LoadScoreboard()
+    {
+        if (UserSession.UserId <= 0)
+        {
+            scoreboard = new();
+            return;
+        }
+
+        // Pasiimame draugus
+        var friends = await Http.GetFromJsonAsync<List<User>>($"api/friends/{UserSession.UserId}") ?? new();
+
+        // Pridedame patį vartotoją, jei jo nėra sąraše
+        if (UserSession.CurrentUser != null && !friends.Any(f => f.Id == UserSession.CurrentUser.Id))
+        {
+            friends.Add(UserSession.CurrentUser);
+        }
+
+        // Rikiuojame pagal laimėjimus, tada pralaimėjimus
+        scoreboard = friends
+        .OrderByDescending(f => f.Wins)
+        .ThenBy(f => f.Losses)
+        .ThenBy(f => f.UserName)
+        .ToList();
+
+        StateHasChanged();
     }
 }
 
 <style>
-.column_1 {
-    display: flex;
-    flex-direction: column; /* vienas po kito */
-    gap: 5px;               /* tarpai tarp laukelių */
-}
-.card-image {
-    width: 250px;   
-}
-.right {
-    display: flex;
-    flex-direction: column;
-    justify-content: flex-end;   /* vertikaliai – apačioj */
-    align-items: flex-end;       /* horizontaliai – prie pat dešinio krašto */
-    gap: 20px;
-    height: 100%;
-}
-.center-column {
-    display: flex;
-    flex-direction: column;
-    justify-content: center;  
-    align-items: center;    
-    gap: 20px;                
-    height: 100%;             
-}
-.page-wrapper {
-    background-color: #2c425a;
-    display: flex;
-    justify-content: center;  
-    align-items: center;      
-    min-height: 100vh;        
-    box-sizing: border-box;
-}
+    .column_1 {
+        display: flex;
+        flex-direction: column;
+        /* vienas po kito */
+        gap: 5px;
+        /* tarpai tarp laukelių */
+    }
 
-.container {
-    background: #a2c2de;
-    width: 98%;          
-    max-width: 1300px;   
-    min-height: 500px;   
-    padding: 10px 0 10px 10px; /* viršus 10px, dešinė 0px, apačia 10px, kairė 10px */
-    border-radius: 12px;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
-}
+    .card-image {
+        width: 250px;
+    }
 
-.column {
-    display: flex;
-    flex-direction: column;
-    gap: 15px;
-    max-width: 150px;
-    justify-items: center;
-}
+    .right {
+        display: flex;
+        flex-direction: column;
+        justify-content: flex-end;
+        /* vertikaliai – apačioj */
+        align-items: flex-end;
+        /* horizontaliai – prie pat dešinio krašto */
+        gap: 20px;
+        height: 100%;
+    }
 
-.column_1 {
-    display: flex;
-    flex-direction: column;
-    gap: 10px;
-}
+    .center-column {
+        display: flex;
+        flex-direction: column;
+        justify-content: center;
+        align-items: center;
+        gap: 20px;
+        height: 100%;
+    }
 
-.input-field {
-    padding: 8px;
-    border: 2px solid #2c425a;
-    border-radius: 20px;
-    font-size: 16px;
-    height: 50px;
-    width: 150px;
-}
-.circle {
-    padding: 8px;
-    border: 2px solid #2c425a;
-    border-radius: 100px;
-    font-size: 16px;
-    height: 70px;
-    width: 70px;
-}
-.columns {
-    display: grid;
-    grid-template-columns: 1fr 1fr 1fr; 
-    align-items: start;   
-    width: 100%;
-}
+    .page-wrapper {
+        background-color: #2c425a;
+        display: flex;
+        justify-content: center;
+        align-items: center;
+        min-height: 100vh;
+        box-sizing: border-box;
+    }
 
-.top-image {
-    width: 350px;
-    height: auto;
-    margin-bottom: 30px;
-    border-radius: 12px;
-    justify-content: center; 
-    align-items: center;     
-}
-.img {
-    width: 150px;
-    height: auto;
-    border-radius: 12px;
-    justify-content: center; 
-    align-items: left;      
-}
-.line {
-    display: flex;
-    flex-direction: row;
-    gap: 10px;
-    justify-content: flex-start;
-}
+    .container {
+        background: #a2c2de;
+        width: 98%;
+        max-width: 1300px;
+        min-height: 500px;
+        padding: 10px 0 10px 10px;
+        /* viršus 10px, dešinė 0px, apačia 10px, kairė 10px */
+        border-radius: 12px;
+        box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
+    }
 
-.line_1 {
-    display: flex;
-    flex-direction: row;
-    gap: 10px;
-    justify-content: flex-end;
-}
-.btn {
-    background-color: #2c425a;
-    color: white;
-    padding: 12px;
-    border: none;
-    border-radius: 8px;
-    font-size: 16px;
-    font-weight: bold;
-    cursor: pointer;
-    transition: 0.3s;
-    text-decoration: none;
-    text-align: center;
-    min-width: 180px;
-    max-height: 50px;
-}
+    .column {
+        display: flex;
+        flex-direction: column;
+        gap: 15px;
+        max-width: 150px;
+        justify-items: center;
+    }
 
-.btn:hover  {
-    background-color: #56708c;
-    color: #f0e1b4;
-}
+    .column_1 {
+        display: flex;
+        flex-direction: column;
+        gap: 10px;
+    }
 
-.square {
-    width: 340px;
-    height: 200px;
-    background-color: #ffffffff;
-    border-radius: 12px;
-    border: 7px solid #2c425a;
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    color: #f0e1b4;
-    font-weight: bold;
-    font-size: 18px;
-    cursor: pointer;
-    transition: 0.3s;
+    .input-field {
+        padding: 8px;
+        border: 2px solid #2c425a;
+        border-radius: 20px;
+        font-size: 16px;
+        height: 50px;
+        width: 150px;
+    }
 
-}
-.leaderboard {
-    flex-direction: column;  
-    justify-items: center; 
-    align-items: stretch;    
-    padding: 10px;
-    gap: 0;                  
+    .circle {
+        padding: 8px;
+        border: 2px solid #2c425a;
+        border-radius: 100px;
+        font-size: 16px;
+        height: 70px;
+        width: 70px;
+    }
 
-}
+    .columns {
+        display: grid;
+        grid-template-columns: 1fr 1fr 1fr;
+        align-items: start;
+        width: 100%;
+    }
 
-.leader-row {
-    flex: 1;                         
-    display: flex;
-    align-items: center;
-    padding-left: 10px;
-    font-size: 18px;
-    font-weight: bold;
-    color: #2c425a;
-    border-bottom: 2px solid #2c425a; 
-}
+    .top-image {
+        width: 350px;
+        height: auto;
+        margin-bottom: 30px;
+        border-radius: 12px;
+        justify-content: center;
+        align-items: center;
+    }
 
-.leader-row:last-child {
-    border-bottom: none; 
-}
-.svg-buttons {
-    display: flex;
-    flex-direction: row;
-    gap: 15px;            
-    align-items: flex-end;
-    justify-content: flex-end;
-    width: 100%;
-    padding: 10px;
-}
-.btnn {
-    background: none;
-    border: none;
-    padding: 0;
-    cursor: pointer;
-}
-.btnn svg {
-    width: 32px;
-    height: 32px;
-    color: #2c425a;
-    transition: 0.3s;
-}
+    .img {
+        width: 150px;
+        height: auto;
+        border-radius: 12px;
+        justify-content: center;
+        align-items: left;
+    }
 
-.btnn:hover svg {
-    color: #56708c;
-}
+    .line {
+        display: flex;
+        flex-direction: row;
+        gap: 10px;
+        justify-content: flex-start;
+    }
+
+    .line_1 {
+        display: flex;
+        flex-direction: row;
+        gap: 10px;
+        justify-content: flex-end;
+    }
+
+    .btn {
+        background-color: #2c425a;
+        color: white;
+        padding: 12px;
+        border: none;
+        border-radius: 8px;
+        font-size: 16px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: 0.3s;
+        text-decoration: none;
+        text-align: center;
+        min-width: 180px;
+        max-height: 50px;
+    }
+
+    .btn:hover {
+        background-color: #56708c;
+        color: #f0e1b4;
+    }
+
+    .square.leaderboard {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+        width: 340px;
+        min-height: 220px;
+        background-color: #ffffff;
+        border-radius: 12px;
+        border: 7px solid #2c425a;
+        padding: 15px 10px;
+        box-sizing: border-box;
+    }
+
+    .leaderboard h3 {
+        color: #2c425a;
+        text-align: center;
+        margin-bottom: 12px;
+        font-size: 22px;
+        font-weight: 700;
+    }
+
+    .leaderboard-list {
+        display: flex;
+        flex-direction: column;
+        width: 100%;
+        background: #ffffff;
+        border-radius: 8px;
+        overflow: hidden;
+    }
+
+    .leader-row {
+        display: grid;
+        grid-template-columns: 40px 1fr 50px 50px;
+        align-items: center;
+        padding: 6px 10px;
+        border-bottom: 2px solid #2c425a;
+        font-weight: 600;
+        color: #1c2d3e;
+        text-align: center;
+    }
+
+    .leader-row.me {
+        background-color: #f0e1b4;
+        font-weight: 700;
+    }
+
+    .leader-row:last-child {
+        border-bottom: none;
+    }
+
+
+
+
+    .svg-buttons {
+        display: flex;
+        flex-direction: row;
+        gap: 15px;
+        align-items: flex-end;
+        justify-content: flex-end;
+        width: 100%;
+        padding: 10px;
+    }
+
+    .btnn {
+        background: none;
+        border: none;
+        padding: 0;
+        cursor: pointer;
+    }
+
+    .btnn svg {
+        width: 32px;
+        height: 32px;
+        color: #2c425a;
+        transition: 0.3s;
+    }
+
+    .btnn:hover svg {
+        color: #56708c;
+    }
 </style>

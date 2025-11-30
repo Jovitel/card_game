@@ -19,5 +19,7 @@ namespace CardGame.Shared.Models
 
         public int Wins { get; set; } = 0;
         public int Losses { get; set; } = 0;
+
+        public List<int> Friends { get; set; } = new(); // saugomi draugų ID
     }
 }
