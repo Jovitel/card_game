@@ -26,6 +26,10 @@ namespace CardGame.Api.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<string>("Friends")
+                        .IsRequired()
+                        .HasColumnType("TEXT");
+
                     b.Property<int>("Losses")
                         .HasColumnType("INTEGER");
 
