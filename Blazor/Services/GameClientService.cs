@@ -17,7 +17,7 @@ namespace card_game.Services
 
         // Laikome prisijungusių žaidėjų sąrašą ir savo vardą
         public List<string> ConnectedPlayers { get; private set; } = new();  // Prisijungusių žaidėjų vardai
-        public string MyName { get; private set; } = $"Player_{Guid.NewGuid().ToString()[..4]}"; // Automatinis vardas
+        public string MyName { get; private set; } = $"Player_{Guid.NewGuid().ToString("N").Substring(0, 4)}"; // Automatinis vardas
 
         // Įvykiai, kuriuos klausys Blazor puslapiai (UI pusė)
         public event Action? OnStartGame;                          // Kai žaidimas prasideda
@@ -32,13 +32,16 @@ namespace card_game.Services
         public bool IsConnected => _hubConnection?.State == HubConnectionState.Connected;
 
         // Prisijungimo dalis 
-        public async Task ConnectAsync()
+        public async Task ConnectAsync(string? username = null)
         {
-            // Jei jau prijungta – nereikia kartoti
             if (_hubConnection != null && IsConnected)
                 return;
 
-            // Sukuriame naują SignalR jungtį į serverį
+            // Jei duotas username – naudok jį, kitu atveju sugeneruok random
+            MyName = string.IsNullOrEmpty(username)
+                ? $"Guest_{Guid.NewGuid().ToString("N").Substring(0, 4)}"
+                : username;
+
             _hubConnection = new HubConnectionBuilder()
                 .WithUrl("https://localhost:7200/gamehub")
                 .WithAutomaticReconnect()
@@ -175,13 +178,13 @@ namespace card_game.Services
         }
 
         public async Task RequestEndTurnAsync()
-{
-    if (_hubConnection == null || _roomCode == null)
-        return;
+        {
+            if (_hubConnection == null || _roomCode == null)
+                return;
 
-    await _hubConnection.SendAsync("RequestEndTurn", _roomCode, MyName);
-    Console.WriteLine($"Išsiųstas 'RequestEndTurn' signalas ({MyName})");
-}
+            await _hubConnection.SendAsync("RequestEndTurn", _roomCode, MyName);
+            Console.WriteLine($"Išsiųstas 'RequestEndTurn' signalas ({MyName})");
+        }
 
 
     }

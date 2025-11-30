@@ -87,8 +87,8 @@
 
         <!-- Kaladė + eilės info -->
         <div class="deck-wrapper">
-            <DeckView RemainingCardsCount="game?.State?.Deck?.CardsLeft ?? 0"
-                TrumpCard="game?.State?.Deck?.PeekBottomCard()" />
+            <DeckView @key="game?.State?.Deck?.CardsLeft" RemainingCardsCount="game?.State?.Deck?.CardsLeft ?? 0"
+                TrumpCard="game?.State?.Deck?.TrumpCard" />
 
             <h4 class="turn-info">@turnText</h4>
         </div>
@@ -140,10 +140,16 @@
 
     protected override async Task OnInitializedAsync()
     {
+        if (UserSession?.Username == null)
+        {
+            NavigationManager.NavigateTo("/login");
+            return;
+        }
+
         GameClient.OnStartGame += HostStartGame;
         GameClient.OnGameActionReceived += ApplyAction;
 
-        await GameClient.ConnectAsync();
+        await GameClient.ConnectAsync(UserSession.Username);
         connected = true;
 
         if (isHost)
@@ -164,9 +170,11 @@
     {
         if (!isHost) return;
 
-        var myName = UserSession?.Username ?? "P1";
+        var myName = UserSession!.Username;
+        var opponentName = GameClient.ConnectedPlayers.FirstOrDefault(p => p != myName) ?? "Kitas";
+
         me = new Player(myName);
-        opponent = new Player("P2");
+        opponent = new Player(opponentName);
 
         game = new DurakGameEngine(new List<Player> { me, opponent });
 
@@ -180,7 +188,7 @@
 
     private async void SendInitState()
     {
-        var trumpCard = game!.State.Deck!.PeekBottomCard();
+        var trumpCard = game!.State.Deck!.TrumpCard;
 
         var initAction = new GameAction
         {
@@ -189,7 +197,9 @@
 {
 ["trumpCard"] = JsonSerializer.Serialize(trumpCard),
 ["p1cards"] = JsonSerializer.Serialize(me!.Hand),
-["p2cards"] = JsonSerializer.Serialize(opponent!.Hand)
+["p2cards"] = JsonSerializer.Serialize(opponent!.Hand),
+["p1name"] = me!.Name,
+["p2name"] = opponent!.Name
 }
         };
 
@@ -201,8 +211,29 @@
     {
         if (isHost || engineReady) return;
 
-        var myName = UserSession?.Username ?? "P2";
+        var myName = UserSession!.Username;
+
+        // naudojam vardus, kuriuos atsiuntė host
+        var p1Name = a.Data.ContainsKey("p1name") ? a.Data["p1name"] : "Žaidėjas1";
+        var p2Name = a.Data.ContainsKey("p2name") ? a.Data["p2name"] : "Žaidėjas2";
+
+        // Nustatom, kas yra kas pagal prisijungusio vartotojo vardą
+        string opponentName;
+        if (myName == p1Name)
+            opponentName = p2Name;
+        else if (myName == p2Name)
+            opponentName = p1Name;
+        else
+        {
+            // jei neatitiko nei vieno – atsarginis variantas
+            opponentName = p1Name;
+        }
+
         me = new Player(myName);
+        opponent = new Player(opponentName);
+
+
+
         game = new DurakGameEngine(new List<Player> { opponent!, me! });
 
         opponent!.Hand = JsonSerializer.Deserialize<List<Card>>(a.Data["p1cards"])!;
@@ -218,6 +249,10 @@
         engineReady = true;
         UpdateTurnText();
         InvokeAsync(StateHasChanged);
+        Console.WriteLine($"[DEBUG] Mano vardas: {me.Name}");
+        Console.WriteLine($"[DEBUG] Oponentas: {opponent.Name}");
+        Console.WriteLine($"[DEBUG] Mano kortos: {me.Hand.Count}");
+        Console.WriteLine($"[DEBUG] Oponento kortos: {opponent.Hand.Count}");
     }
 
     private async Task SetupTurnsAsync()
@@ -373,14 +408,36 @@
 {
 ["nextAttacker"] = game.State.Attacker.Name,
 ["nextDefender"] = game.State.Defender.Name,
-["p1cards"] = JsonSerializer.Serialize(game.State.Players[0].Hand),
-["p2cards"] = JsonSerializer.Serialize(game.State.Players[1].Hand),
-["trump"] = game.State.TrumpSuit.ToString()
+["trump"] = game.State.TrumpSuit.ToString(),
+["hands"] = JsonSerializer.Serialize(
+game.State.Players.ToDictionary(p => p.Name, p => p.Hand)),
+["deckCount"] = (game.State.Deck?.CardsLeft ?? 0).ToString(),
+["trumpCard"] = JsonSerializer.Serialize(game.State.Deck?.TrumpCard)
 }
             };
 
             await GameClient.SendGameActionAsync(act);
+
+            if (isHost && game.State.IsGameOver)
+            {
+                var winner = game.State.Players.FirstOrDefault(p => p.Hand.Count == 0);
+
+                var over = new GameAction
+                {
+                    Action = "GAME_OVER",
+                    Data =
+{
+["winner"] = winner?.Name ?? "Niekas",
+["hands"] = JsonSerializer.Serialize(
+game.State.Players.ToDictionary(p => p.Name, p => p.Hand ?? new List<Card>()))
+}
+                };
+
+                await GameClient.SendGameActionAsync(over);
+            }
+
         }
+
         else
         {
             var request = new GameAction { Action = "REQUEST_ENDTURN" };
@@ -427,14 +484,36 @@
 {
 ["nextAttacker"] = game.State.Attacker.Name,
 ["nextDefender"] = game.State.Defender.Name,
-["p1cards"] = JsonSerializer.Serialize(game.State.Players[0].Hand),
-["p2cards"] = JsonSerializer.Serialize(game.State.Players[1].Hand),
-["trump"] = game.State.TrumpSuit.ToString()
+["trump"] = game.State.TrumpSuit.ToString(),
+["hands"] = JsonSerializer.Serialize(
+game.State.Players.ToDictionary(p => p.Name, p => p.Hand)),
+["deckCount"] = (game.State.Deck?.CardsLeft ?? 0).ToString(),
+["trumpCard"] = JsonSerializer.Serialize(game.State.Deck?.TrumpCard)
 }
                     };
                     await GameClient.SendGameActionAsync(act);
+
+                    if (game.State.IsGameOver)
+                    {
+                        var winner = game.State.Players.FirstOrDefault(p => p.Hand.Count == 0);
+
+                        var over = new GameAction
+                        {
+                            Action = "GAME_OVER",
+                            Data =
+{
+["winner"] = winner?.Name ?? "Niekas",
+["hands"] = JsonSerializer.Serialize(
+game.State.Players.ToDictionary(p => p.Name, p => p.Hand ?? new List<Card>()))
+}
+                        };
+
+                        await GameClient.SendGameActionAsync(over);
+                    }
                 }
                 break;
+
+
 
             case "ENDTURN":
                 {
@@ -443,7 +522,12 @@
                     {
                         var att = game!.State.Players.FirstOrDefault(p => p.Name == attName);
                         var def = game.State.Players.FirstOrDefault(p => p.Name == defName);
-                        if (att != null && def != null)
+
+                        if (att == null || def == null)
+                        {
+                            Console.WriteLine($"[WARN] Nepavyko rasti žaidėjų pagal vardus: {attName}, {defName}");
+                        }
+                        else
                         {
                             game.State.Attacker = att;
                             game.State.Defender = def;
@@ -452,31 +536,58 @@
                         }
                     }
 
-                    if (action.Data.TryGetValue("p1cards", out var p1json) &&
-                    action.Data.TryGetValue("p2cards", out var p2json))
+                    if (action.Data.TryGetValue("hands", out var handsJson))
                     {
-                        var p1Cards = JsonSerializer.Deserialize<List<Card>>(p1json)!;
-                        var p2Cards = JsonSerializer.Deserialize<List<Card>>(p2json)!;
+                        var allHands = JsonSerializer.Deserialize<Dictionary<string, List<Card>>>(handsJson)!;
 
-                        var p1 = game!.State.Players.First(p => p.Name == "P1");
-                        var p2 = game.State.Players.First(p => p.Name == "P2");
+                        if (allHands.TryGetValue(me!.Name, out var myCards))
+                            me.Hand = myCards;
 
-                        p1.Hand = p1Cards;
-                        p2.Hand = p2Cards;
+                        if (allHands.TryGetValue(opponent!.Name, out var oppCards))
+                            opponent.Hand = oppCards;
                     }
+
+                    if (action.Data.TryGetValue("deckCount", out var deckCountStr)
+                    && int.TryParse(deckCountStr, out var deckCount))
+                    {
+                        if (deckCount <= 0)
+                        {
+                            // Kaladė baigėsi – parodom tuščią, bet su kozeriu
+                            if (action.Data.TryGetValue("trumpCard", out var trumpJson))
+                            {
+                                var trump = JsonSerializer.Deserialize<Card>(trumpJson);
+                                game!.State.Deck = new Deck();
+                                if (trump != null)
+                                    game.State.Deck.OverrideTrumpCard(trump);
+
+                                game.State.Deck.OverrideToEmpty();
+                            }
+                        }
+                        else
+                        {
+                            // Jei norėtum, čia galima būtų bandyti tvarkyti ir tikslesnį kiekį,
+                            // bet tau svarbiausia – atsinaujinimas kai pasidaro 0.
+                        }
+                    }
+
 
                     if (action.Data.TryGetValue("trump", out var trumpSuit))
                         game!.State.TrumpSuit = Enum.Parse<Suit>(trumpSuit);
 
                     game!.State.TableCards.Clear();
                     myTurn = (game!.State.Attacker == me);
+
+                    Console.WriteLine($"[INFO] ENDTURN: {me!.Name} -> Attacker: {game!.State.Attacker!.Name}, Defender: {game!.State.Defender!.Name}");
                     break;
                 }
+
 
             case "REQUEST_PICKUP":
                 if (isHost && game != null)
                 {
                     var defender = game.State.Defender;
+
+                    // Gynėjas pasiima visas kortas nuo stalo
                     foreach (var pair in game.State.TableCards)
                     {
                         defender.Hand.Add(pair.Key);
@@ -484,6 +595,9 @@
                             defender.Hand.Add(pair.Value);
                     }
 
+                    game.State.TableCards.Clear();
+
+                    // Pabaigiam ėjimą su flag`u, kad gynėjas pasiėmė
                     game.EndTurn(true);
 
                     var act = new GameAction
@@ -491,44 +605,117 @@
                         Action = "PICKUP",
                         Data =
 {
-["p1cards"] = JsonSerializer.Serialize(game.State.Players[0].Hand),
-["p2cards"] = JsonSerializer.Serialize(game.State.Players[1].Hand),
+["hands"] = JsonSerializer.Serialize(
+game.State.Players.ToDictionary(p => p.Name, p => p.Hand)),
 ["nextAttacker"] = game.State.Attacker.Name,
 ["nextDefender"] = game.State.Defender.Name,
-["trump"] = game.State.TrumpSuit.ToString()
+["trump"] = game.State.TrumpSuit.ToString(),
+["deckCount"] = (game.State.Deck?.CardsLeft ?? 0).ToString(),
+["trumpCard"] = JsonSerializer.Serialize(game.State.Deck?.TrumpCard)
 }
                     };
 
                     await GameClient.SendGameActionAsync(act);
+
+                    // Jei po pickup žaidimas pasibaigė
+                    if (game.State.IsGameOver)
+                    {
+                        var winner = game.State.Players.FirstOrDefault(p => p.Hand.Count == 0);
+
+                        var over = new GameAction
+                        {
+                            Action = "GAME_OVER",
+                            Data =
+{
+["winner"] = winner?.Name ?? "Niekas",
+["hands"] = JsonSerializer.Serialize(
+game.State.Players.ToDictionary(p => p.Name, p => p.Hand))
+}
+                        };
+                        await GameClient.SendGameActionAsync(over);
+                    }
                 }
                 break;
 
+
             case "PICKUP":
                 {
-                    var p1 = game!.State.Players.First(p => p.Name == "P1");
-                    var p2 = game.State.Players.First(p => p.Name == "P2");
+                    if (action.Data.TryGetValue("hands", out var handsJson))
+                    {
+                        var allHands = JsonSerializer.Deserialize<Dictionary<string, List<Card>>>(handsJson)!;
 
-                    p1.Hand = JsonSerializer.Deserialize<List<Card>>(action.Data["p1cards"])!;
-                    p2.Hand = JsonSerializer.Deserialize<List<Card>>(action.Data["p2cards"])!;
-                    game.State.TableCards.Clear();
+                        if (allHands.TryGetValue(me!.Name, out var myCards))
+                            me.Hand = myCards;
 
-                    var attName = action.Data["nextAttacker"];
-                    var defName = action.Data["nextDefender"];
+                        if (allHands.TryGetValue(opponent!.Name, out var oppCards))
+                            opponent.Hand = oppCards;
+                    }
 
-                    var att = game.State.Players.First(p => p.Name == attName);
-                    var def = game.State.Players.First(p => p.Name == defName);
-                    game.State.Attacker = att;
-                    game.State.Defender = def;
-                    game.State.CurrentAttackerIndex = game.State.Players.IndexOf(att);
-                    game.State.CurrentDefenderIndex = game.State.Players.IndexOf(def);
+                    game!.State.TableCards.Clear();
 
-                    myTurn = (game.State.Attacker == me) || (game.State.Defender == me && game.State.TableCards.Count == 0);
+                    // atnaujinam, kas atakuoja ir kas ginas
+                    if (action.Data.TryGetValue("nextAttacker", out var attName) &&
+                    action.Data.TryGetValue("nextDefender", out var defName))
+                    {
+                        var att = game.State.Players.First(p => p.Name == attName);
+                        var def = game.State.Players.First(p => p.Name == defName);
+                        game.State.Attacker = att;
+                        game.State.Defender = def;
+                        game.State.CurrentAttackerIndex = game.State.Players.IndexOf(att);
+                        game.State.CurrentDefenderIndex = game.State.Players.IndexOf(def);
+                    }
+
+                    // atnaujinam kaladę, jei tuščia
+                    if (action.Data.TryGetValue("deckCount", out var deckCountStr)
+                    && int.TryParse(deckCountStr, out var deckCount))
+                    {
+                        if (deckCount <= 0)
+                        {
+                            if (action.Data.TryGetValue("trumpCard", out var trumpJson))
+                            {
+                                var trump = JsonSerializer.Deserialize<Card>(trumpJson);
+                                game.State.Deck = new Deck();
+                                if (trump != null)
+                                    game.State.Deck.OverrideTrumpCard(trump);
+                                game.State.Deck.OverrideToEmpty();
+                            }
+                        }
+                    }
+
+                    myTurn = (game.State.Attacker == me);
                     UpdateTurnText();
-
                     await InvokeAsync(StateHasChanged);
                     break;
                 }
+
+            case "GAME_OVER":
+                {
+                    if (game == null)
+                        break;
+
+                    game.State.IsGameOver = true;
+
+                    if (action.Data.TryGetValue("hands", out var handsJson))
+                    {
+                        var allHands = JsonSerializer.Deserialize<Dictionary<string, List<Card>>>(handsJson)!;
+
+                        foreach (var kv in allHands)
+                        {
+                            var player = game.State.Players.FirstOrDefault(p => p.Name == kv.Key);
+                            if (player != null)
+                                player.Hand = kv.Value;
+                        }
+                    }
+
+                    myTurn = false;
+
+                    // čia jau naudojam tavo RefreshUI navigacijai į /gameover/...
+                    await RefreshUI();
+                    break;
+                }
+
         }
+
 
         UpdateTurnText();
         await InvokeAsync(StateHasChanged);

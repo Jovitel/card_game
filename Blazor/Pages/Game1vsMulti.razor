@@ -170,10 +170,16 @@
     {
         // Multi režime StartGame iš hub'o ignoruojam – host pats spaudžia mygtuką
 
+        if (UserSession?.Username == null)
+        {
+            NavigationManager.NavigateTo("/login");
+            return;
+        }
+
         GameClient.OnGameActionReceived += ApplyAction;
         GameClient.OnReadyToStart += HandleReadyToStart;
 
-        await GameClient.ConnectAsync();
+        await GameClient.ConnectAsync(UserSession?.Username);
         connected = true;
 
         if (isHost)
@@ -198,23 +204,22 @@
         InvokeAsync(StateHasChanged);
     }
 
-    private bool CanStartGame => GameClient.ConnectedPlayers?.Count >= 3;
+    private bool CanStartGame => (GameClient.ConnectedPlayers?.Distinct().Count() ?? 0) >= 3;
 
     private async void HostStartGame()
     {
         if (!isHost) return;
 
-        var players = GameClient.ConnectedPlayers ?? new List<string> { "Host", "Guest1", "Guest2" };
+        var myName = UserSession!.Username;
+        var players = GameClient.ConnectedPlayers?.ToList() ?? new List<string>();
+
+        if (!players.Contains(myName))
+            players.Add(myName);
+
         if (players.Count < 3)
             return;
 
-        // Pakeičiam savo vardą, jei prisijungta
-        var myName = UserSession?.Username ?? GameClient.MyName;
-
-        // Sukuriame žaidėjus, pakeičiant host vardą į prisijungusio vartotojo vardą
-        var playerObjects = players.Select(name =>
-        name == GameClient.MyName ? new Player(myName) : new Player(name)
-        ).ToList();
+        var playerObjects = players.Select(name => new Player(name)).ToList();
 
         me = playerObjects.First(p => p.Name == myName);
         opponents = playerObjects.Where(p => p != me).ToList();
@@ -234,7 +239,7 @@
         var playerStates = game!.State.Players
         .ToDictionary(p => p.Name, p => JsonSerializer.Serialize(p.Hand));
 
-        var trumpCard = game.State.Deck?.PeekBottomCard();
+        var trumpCard = game.State.Deck?.TrumpCard;
 
         var initAction = new GameAction
         {
@@ -252,35 +257,63 @@
 
 
 
-    private void ApplyInit(GameAction a)
-    {
-        if (isHost || engineReady) return;
+private void ApplyInit(GameAction a)
+{
+    if (isHost || engineReady) return;
 
+    try
+    {
+        // Nusiskaitom žaidėjų rankas iš serverio
         var playerHands = JsonSerializer.Deserialize<Dictionary<string, string>>(a.Data["players"])!;
         var allPlayers = playerHands.Keys.Select(name => new Player(name)).ToList();
 
-        game = new DurakGameEngine(allPlayers);
-        var myName = UserSession?.Username ?? GameClient.MyName;
-        me = allPlayers.FirstOrDefault(p => p.Name == myName) ?? new Player(myName);
-        opponents = allPlayers.Where(p => p != me).ToList();
-
-        foreach (var kv in playerHands)
+        // Pasirenkam savo vardą (prisijungęs arba sugeneruotas)
+        var myName = UserSession!.Username;
+        me = allPlayers.FirstOrDefault(p => p.Name == myName);
+        if (me == null)
         {
-            var pl = allPlayers.First(p => p.Name == kv.Key);
-            pl.Hand = JsonSerializer.Deserialize<List<Card>>(kv.Value)!;
+            me = new Player(myName);
+            allPlayers.Add(me);
         }
 
-        var trumpCard = JsonSerializer.Deserialize<Card>(a.Data["trumpCard"]);
-        game.State.TrumpSuit = trumpCard!.Suit;
+        //  Visi kiti tampa oponentais
+        opponents = allPlayers.Where(p => p != me).ToList();
 
-        // Sukuriame švarų deck'ą ir nustatome tą patį kozerį
-        game.State.Deck = new Deck();
-        game.State.Deck.OverrideTrumpCard(trumpCard);
+        //  Sukuriam variklį su pilnu sąrašu
+        game = new DurakGameEngine(allPlayers);
+
+        // Užpildom rankas
+        foreach (var kv in playerHands)
+        {
+            var pl = allPlayers.FirstOrDefault(p => p.Name == kv.Key);
+            if (pl != null)
+                pl.Hand = JsonSerializer.Deserialize<List<Card>>(kv.Value)!;
+        }
+
+        // Nustatom kozerį
+        if (a.Data.TryGetValue("trumpCard", out var trumpJson))
+        {
+            var trumpCard = JsonSerializer.Deserialize<Card>(trumpJson);
+            if (trumpCard != null)
+            {
+                game.State.TrumpSuit = trumpCard.Suit;
+                game.State.Deck = new Deck();
+                game.State.Deck.OverrideTrumpCard(trumpCard);
+            }
+        }
 
         engineReady = true;
         UpdateTurnText();
         InvokeAsync(StateHasChanged);
+        Console.WriteLine($"[DEBUG] Mano vardas: {me.Name}");
+        Console.WriteLine($"[DEBUG] Visi žaidėjai: {string.Join(", ", game.State.Players.Select(p => p.Name))}");
+        Console.WriteLine($"[DEBUG] Mano kortų skaičius: {me.Hand.Count}");
     }
+    catch (Exception ex)
+    {
+        Console.WriteLine($"Klaida ApplyInit metu: {ex.Message}");
+    }
+}
 
 
 
@@ -486,7 +519,7 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand))
                     game.State.Defender = d;
                     game.State.CurrentAttackerIndex = game.State.Players.IndexOf(a);
                     game.State.CurrentDefenderIndex = game.State.Players.IndexOf(d);
-                    myTurn = (a == me);
+                    myTurn = (game.State.Attacker?.Name == me?.Name);
                     break;
                 }
 
@@ -566,35 +599,49 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand))
 
             // --- Gynėjo paėmimas (force) ---
             case "FORCE_PICKUP_MULTI":
-                {
-                    if (!isHost || game == null) break;
-
-                    var defender = game.State.Defender;
-                    foreach (var pair in game.State.TableCards)
-                    {
-                        defender.Hand.Add(pair.Key);
-                        if (pair.Value != null)
-                            defender.Hand.Add(pair.Value);
-                    }
-
-                    game.State.TableCards.Clear();
-                    game.EndTurn(true);
-
-                    var act = new GameAction
-                    {
-                        Action = "PICKUP_MULTI",
-                        Data =
 {
-["attacker"] = game.State.Attacker.Name,
-["defender"] = game.State.Defender.Name,
-["players"] = JsonSerializer.Serialize(
-game.State.Players.ToDictionary(p => p.Name, p => p.Hand))
-}
-                    };
+    if (!isHost || game == null) break;
 
-                    await GameClient.SendGameActionAsync(act);
-                    break;
-                }
+    var defender = game.State.Defender;
+    foreach (var pair in game.State.TableCards)
+    {
+        defender.Hand.Add(pair.Key);
+        if (pair.Value != null)
+            defender.Hand.Add(pair.Value);
+    }
+
+    game.State.TableCards.Clear();
+    game.EndTurn(true);
+
+    var act = new GameAction
+    {
+        Action = "PICKUP_MULTI",
+        Data =
+        {
+            ["attacker"] = game.State.Attacker.Name,
+            ["defender"] = game.State.Defender.Name,
+            ["players"] = JsonSerializer.Serialize(
+                game.State.Players.ToDictionary(p => p.Name, p => p.Hand))
+        }
+    };
+
+    await GameClient.SendGameActionAsync(act);
+
+    // 🔹 naujas papildomas pranešimas apie naują eilę
+    var turn = new GameAction
+    {
+        Action = "SETTURN_MULTI",
+        Data =
+        {
+            ["attacker"] = game.State.Attacker.Name,
+            ["defender"] = game.State.Defender.Name
+        }
+    };
+    await GameClient.SendGameActionAsync(turn);
+
+    break;
+}
+
 
             // --- Baigti ėjimą (force) ---
             case "FORCE_ENDTURN_MULTI":
