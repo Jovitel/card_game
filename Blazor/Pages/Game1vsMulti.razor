@@ -1,0 +1,1092 @@
+@page "/game/1vsmulti"
+@page "/game/1vsmulti/{JoinCode?}"
+@layout MainLayout
+@using card_game.GameLogic
+@using card_game.GameDesign
+@using card_game.Services
+@using CardGame.Shared.Models
+@using System.Text.Json
+@inject GameClientService GameClient
+@inject HttpClient Http
+@inject UserSession UserSession
+@inject NavigationManager NavigationManager
+
+<div class="page-wrapper">
+    @if (!connected)
+    {
+        <p>Jungiamasi prie serverio...</p>
+    }
+    else if (!engineReady || game == null || me == null)
+    {
+        <div class="waiting-container">
+            <p class="waiting-text">Laukiama žaidėjų prisijungiant...</p>
+            <p class="join-code-label">Kodas:</p>
+            <p class="join-code">@roomCode</p>
+            <p class="join-subtext">(iki 3 ar 4 žaidėjų)</p>
+
+            @if (isHost)
+            {
+                <button class="start-game-btn" @onclick="HostStartGame" disabled="@(!CanStartGame)">
+                    Pradėti žaidimą
+                </button>
+            }
+        </div>
+    }
+    else
+    {
+        <!-- Viršuje: keli oponentai -->
+        <div class="multi-opponents">
+            @foreach (var opp in opponents)
+            {
+                var handSnapshot = opp.Hand?.ToList() ?? new List<Card>();
+
+                <div class="opponent-block">
+                    <div class="opponent-info-bar">
+                        <div class="opponent-avatar"></div>
+                        <span class="opponent-label">@opp.Name</span>
+                    </div>
+
+                    <div class="opponent-hand-small">
+                        @for (int i = 0; i < handSnapshot.Count; i++)
+                        {
+                            <div class="card-small">
+                                <BackCard />
+                            </div>
+                        }
+                    </div>
+                </div>
+            }
+
+        </div>
+
+
+        <!-- Mygtukai -->
+        <div class="turn-buttons">
+            <button class="btn btn-end-turn" @onclick="EndTurn"
+                disabled="@(!myTurn || !game.CanEndTurn(me) || game.State.IsGameOver)">
+                Baigti ėjimą
+            </button>
+
+            <button class="btn btn-warning" @onclick="PickUpCards"
+                disabled="@(!myTurn || game?.State.Defender != me || me.Hand.Count == 0)">
+                Paimti kortas
+            </button>
+
+        </div>
+
+        <!-- Kortos ant stalo -->
+        <div class="table-cards">
+            @if (game?.State?.TableCards != null && game.State.TableCards.Count > 0)
+            {
+                var tableSnapshot = game.State.TableCards.ToList();
+
+                @for (int i = 0; i < 6; i++)
+                {
+                    <div class="table-pair">
+                        @if (i < tableSnapshot.Count)
+                        {
+                            var pair = tableSnapshot[i];
+                            <GameCard Card="@pair.Key" Disabled="true" class="attack-card" />
+                            @if (pair.Value != null)
+                            {
+                                <GameCard Card="@pair.Value" Disabled="true" class="defend-card" />
+                            }
+                            else
+                            {
+                                <div class="defend-placeholder"></div>
+                            }
+                        }
+                    </div>
+                }
+            }
+        </div>
+
+
+        <!-- Kaladė + pranešimas -->
+        <div class="deck-wrapper">
+            @if (game?.State?.Deck != null)
+            {
+                <DeckView @key="game?.State?.Deck?.CardsLeft" RemainingCardsCount="game?.State?.Deck?.CardsLeft ?? 0"
+                    TrumpCard="game?.State?.Deck?.PeekBottomCard()" />
+            }
+            else
+            {
+                <!-- fallback, jei deck nėra -->
+                <DeckView @key="0" RemainingCardsCount="0" TrumpCard="null" />
+            }
+
+            <h4 class="turn-info">@turnText</h4>
+        </div>
+
+
+        <!-- Žaidėjo ranka -->
+
+        @if (me?.Hand != null && game?.State != null)
+        {
+            <div class="card-row player-hand">
+                @for (int i = 0; i < me.Hand.Count; i++)
+                {
+                    var card = me.Hand[i];
+                    bool canPlay =
+                    myTurn &&
+                    ((game.State.Attacker == me && game.CanAttackWith(me, card)) ||
+                    (game.State.Defender == me && game.CanDefendWith(me, card)));
+
+                    <div class="@(canPlay ? "" : "tooltip-container")" data-tooltip="@(canPlay ? "" : "You cannot use this card")"
+                        style="--index:@i; --count:@me.Hand.Count;">
+                        <GameCard Card="card" Disabled="!canPlay" OnPlay="() => PlayCard(card)" />
+                    </div>
+                }
+            </div>
+        }
+        else
+        {
+            <div class="card-row player-hand"></div>
+        }
+
+
+        <div class="player-info-bar">
+            <div class="profile-placeholder"></div>
+            <span class="opponent-label" style="margin-left:10px;">@me?.Name</span>
+        </div>
+    }
+</div>
+
+@code {
+    [Parameter] public string? JoinCode { get; set; }
+
+    private DurakGameEngine? game;
+    private Player? me;
+    private List<Player> opponents = new();
+
+    private string? roomCode;
+    private bool connected = false;
+    private bool engineReady = false;
+    private bool myTurn = false;
+    private string turnText = "";
+    private bool isHost => string.IsNullOrEmpty(JoinCode);
+
+    protected override async Task OnInitializedAsync()
+    {
+        // Multi režime StartGame iš hub'o ignoruojam – host pats spaudžia mygtuką
+
+        GameClient.OnGameActionReceived += ApplyAction;
+        GameClient.OnReadyToStart += HandleReadyToStart;
+
+        await GameClient.ConnectAsync();
+        connected = true;
+
+        if (isHost)
+        {
+            roomCode = GenerateRoomCode();
+            await GameClient.CreateRoomAsync(roomCode, "1vsmulti");
+        }
+        else
+        {
+            roomCode = JoinCode;
+            await GameClient.JoinRoomAsync(roomCode!);
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
+
+    // Serveris sako, kad kambaryje žaidėjų pakanka startui (>=3)
+    private void HandleReadyToStart(List<string> players)
+    {
+        Console.WriteLine("Galima pradėti žaidimą. Prisijungę žaidėjai: " + string.Join(", ", players));
+        // Čia galėtum rodyt kokį indikatorių, kad galima spausti „Pradėti žaidimą“
+        InvokeAsync(StateHasChanged);
+    }
+
+    private bool CanStartGame => GameClient.ConnectedPlayers?.Count >= 3;
+
+    private async void HostStartGame()
+    {
+        if (!isHost) return;
+
+        var players = GameClient.ConnectedPlayers ?? new List<string> { "Host", "Guest1", "Guest2" };
+        if (players.Count < 3)
+            return;
+
+        // Pakeičiam savo vardą, jei prisijungta
+        var myName = UserSession?.Username ?? GameClient.MyName;
+
+        // Sukuriame žaidėjus, pakeičiant host vardą į prisijungusio vartotojo vardą
+        var playerObjects = players.Select(name =>
+        name == GameClient.MyName ? new Player(myName) : new Player(name)
+        ).ToList();
+
+        me = playerObjects.First(p => p.Name == myName);
+        opponents = playerObjects.Where(p => p != me).ToList();
+
+        game = new DurakGameEngine(playerObjects);
+
+        SendInitState();
+        await SetupTurnsAsync();
+
+        engineReady = true;
+        UpdateTurnText();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async void SendInitState()
+    {
+        var playerStates = game!.State.Players
+        .ToDictionary(p => p.Name, p => JsonSerializer.Serialize(p.Hand));
+
+        var trumpCard = game.State.Deck?.PeekBottomCard();
+
+        var initAction = new GameAction
+        {
+            Action = "INIT_MULTI",
+            Data =
+{
+["trumpSuit"] = game.State.TrumpSuit.ToString(),
+["trumpCard"] = JsonSerializer.Serialize(trumpCard),
+["players"] = JsonSerializer.Serialize(playerStates)
+}
+        };
+
+        await GameClient.SendGameActionAsync(initAction);
+    }
+
+
+
+    private void ApplyInit(GameAction a)
+    {
+        if (isHost || engineReady) return;
+
+        var playerHands = JsonSerializer.Deserialize<Dictionary<string, string>>(a.Data["players"])!;
+        var allPlayers = playerHands.Keys.Select(name => new Player(name)).ToList();
+
+        game = new DurakGameEngine(allPlayers);
+        var myName = UserSession?.Username ?? GameClient.MyName;
+        me = allPlayers.FirstOrDefault(p => p.Name == myName) ?? new Player(myName);
+        opponents = allPlayers.Where(p => p != me).ToList();
+
+        foreach (var kv in playerHands)
+        {
+            var pl = allPlayers.First(p => p.Name == kv.Key);
+            pl.Hand = JsonSerializer.Deserialize<List<Card>>(kv.Value)!;
+        }
+
+        var trumpCard = JsonSerializer.Deserialize<Card>(a.Data["trumpCard"]);
+        game.State.TrumpSuit = trumpCard!.Suit;
+
+        // Sukuriame švarų deck'ą ir nustatome tą patį kozerį
+        game.State.Deck = new Deck();
+        game.State.Deck.OverrideTrumpCard(trumpCard);
+
+        engineReady = true;
+        UpdateTurnText();
+        InvokeAsync(StateHasChanged);
+    }
+
+
+
+    private async Task SetupTurnsAsync()
+    {
+        var rand = new Random();
+        int starterIndex = rand.Next(0, game!.State.Players.Count);
+        game.State.CurrentAttackerIndex = starterIndex;
+        game.State.CurrentDefenderIndex = (starterIndex + 1) % game.State.Players.Count;
+        game.State.Attacker = game.State.Players[starterIndex];
+        game.State.Defender = game.State.Players[game.State.CurrentDefenderIndex];
+
+        myTurn = (game.State.Attacker == me);
+
+        var turnAction = new GameAction
+        {
+            Action = "SETTURN_MULTI",
+            Data =
+{
+["attacker"] = game.State.Attacker.Name,
+["defender"] = game.State.Defender.Name
+}
+        };
+
+        await GameClient.SendGameActionAsync(turnAction);
+        UpdateTurnText();
+    }
+
+    private async Task PlayCard(Card card)
+    {
+        if (!myTurn || game == null || me == null) return;
+
+        // Gynimasis
+        if (game.State.Defender == me)
+        {
+            var attackCard = game.State.TableCards.FirstOrDefault(p => p.Value == null).Key;
+            if (attackCard != null && game.Defend(me, attackCard, card))
+            {
+                myTurn = false;
+                UpdateTurnText();
+
+                var act = new GameAction
+                {
+                    Action = "DEFEND_MULTI",
+                    Data =
+{
+["attackSuit"] = attackCard.Suit.ToString(),
+["attackValue"] = attackCard.Value.ToString(),
+["suit"] = card.Suit.ToString(),
+["value"] = card.Value.ToString()
+}
+                };
+
+                await GameClient.SendGameActionAsync(act);
+                await InvokeAsync(StateHasChanged);
+                return;
+            }
+        }
+
+        // Ataka
+        if (game.Attack(me, card))
+        {
+            myTurn = false;
+            UpdateTurnText();
+
+            var action = new GameAction
+            {
+                Action = "ATTACK_MULTI",
+                Data =
+{
+["suit"] = card.Suit.ToString(),
+["value"] = card.Value.ToString(),
+["player"] = me.Name
+}
+            };
+
+            await GameClient.SendGameActionAsync(action);
+            await InvokeAsync(StateHasChanged);
+        }
+    }
+
+    private async Task EndTurn()
+    {
+        if (!myTurn || game == null || me == null) return;
+        if (!game.CanEndTurn(me)) return;
+
+        if (isHost)
+        {
+            game.EndTurn(false);
+
+            var attackerName = game.State.Attacker?.Name ?? "";
+            var defenderName = game.State.Defender?.Name ?? "";
+
+            var act = new GameAction
+            {
+                Action = "ENDTURN_MULTI",
+                Data =
+{
+["attacker"] = attackerName,
+["defender"] = defenderName,
+["players"] = JsonSerializer.Serialize(
+game.State.Players.ToDictionary(
+p => p.Name,
+p => p.Hand ?? new List<Card>())),
+["deckCount"] = (game.State.Deck?.CardsLeft ?? 0).ToString(),
+["trumpCard"] = JsonSerializer.Serialize(game.State.Deck?.TrumpCard),
+["deckEmpty"] = (game.State.Deck?.CardsLeft ?? 0) <= 0 ? "true" : "false"
+}
+            };
+
+            await GameClient.SendGameActionAsync(act);
+        }
+        else
+        {
+            var force = new GameAction { Action = "FORCE_ENDTURN_MULTI" };
+            await GameClient.SendGameActionAsync(force);
+        }
+
+        // žaidimo pabaigos patikrinimas
+        // Žaidimo pabaigos patikrinimas – tik host'as siunčia
+        if (isHost && game.State.IsGameOver)
+        {
+            var winner = game.State.Players.FirstOrDefault(p => p.Hand.Count == 0);
+            var over = new GameAction
+            {
+                Action = "GAME_OVER",
+                Data =
+{
+["winner"] = winner?.Name ?? "Niekas",
+["players"] = JsonSerializer.Serialize(
+game.State.Players.ToDictionary(p => p.Name, p => p.Hand ?? new List<Card>()))
+}
+            };
+
+            await GameClient.SendGameActionAsync(over);
+        }
+
+
+        myTurn = false;
+        UpdateTurnText();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async Task PickUpCards()
+    {
+        if (game == null || me == null) return;
+        if (!myTurn || game.State.Defender != me) return;
+
+        if (isHost)
+        {
+            // Host gynėjas pats pasiima kortas
+            foreach (var pair in game.State.TableCards)
+            {
+                me.Hand.Add(pair.Key);
+                if (pair.Value != null)
+                    me.Hand.Add(pair.Value);
+            }
+
+            game.State.TableCards.Clear();
+            game.EndTurn(true);
+
+            var act = new GameAction
+            {
+                Action = "PICKUP_MULTI",
+                Data =
+{
+["attacker"] = game.State.Attacker.Name,
+["defender"] = game.State.Defender.Name,
+["players"] = JsonSerializer.Serialize(
+game.State.Players.ToDictionary(p => p.Name, p => p.Hand))
+}
+            };
+
+            await GameClient.SendGameActionAsync(act);
+        }
+        else
+        {
+            // Guest paprašo host'o, kad jis užfiksuotų paėmimą
+            var force = new GameAction { Action = "FORCE_PICKUP_MULTI" };
+            await GameClient.SendGameActionAsync(force);
+        }
+
+        myTurn = false;
+        UpdateTurnText();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private async void ApplyAction(GameAction action)
+    {
+        switch (action.Action)
+        {
+            case "INIT_MULTI":
+                ApplyInit(action);
+                break;
+
+            case "SETTURN_MULTI":
+                {
+                    var attackerName = action.Data["attacker"];
+                    var defenderName = action.Data["defender"];
+                    var a = game!.State.Players.First(p => p.Name == attackerName);
+                    var d = game.State.Players.First(p => p.Name == defenderName);
+                    game.State.Attacker = a;
+                    game.State.Defender = d;
+                    game.State.CurrentAttackerIndex = game.State.Players.IndexOf(a);
+                    game.State.CurrentDefenderIndex = game.State.Players.IndexOf(d);
+                    myTurn = (a == me);
+                    break;
+                }
+
+            case "ATTACK_MULTI":
+                HandleRemoteAttack(action);
+                break;
+
+            case "DEFEND_MULTI":
+                await HandleRemoteDefend(action);
+                break;
+
+            // --- ENDTURN / PICKUP bendras apdorojimas ---
+            case "ENDTURN_MULTI":
+            case "PICKUP_MULTI":
+                {
+                    if (game == null || action.Data == null)
+                        break;
+
+                    if (!action.Data.TryGetValue("players", out var playersJson))
+                        break;
+
+                    var playersData = JsonSerializer.Deserialize<Dictionary<string, List<Card>>>(playersJson)!;
+                    foreach (var kv in playersData)
+                    {
+                        var pl = game.State.Players.FirstOrDefault(p => p.Name == kv.Key);
+                        if (pl != null)
+                            pl.Hand = kv.Value;
+                    }
+
+                    if (action.Data.TryGetValue("attacker", out var attackerName))
+                    {
+                        var nextA = game.State.Players.FirstOrDefault(p => p.Name == attackerName);
+                        if (nextA != null)
+                            game.State.Attacker = nextA;
+                    }
+
+                    if (action.Data.TryGetValue("defender", out var defenderName))
+                    {
+                        var nextD = game.State.Players.FirstOrDefault(p => p.Name == defenderName);
+                        if (nextD != null)
+                            game.State.Defender = nextD;
+                    }
+
+                    if (action.Data.TryGetValue("deckCount", out var deckCountStr)
+                    && int.TryParse(deckCountStr, out var deckCount))
+                    {
+                        if (deckCount <= 0)
+                        {
+                            if (action.Data.TryGetValue("trumpCard", out var trumpJson))
+                            {
+                                var trump = JsonSerializer.Deserialize<Card>(trumpJson);
+                                game.State.Deck = new Deck();
+                                if (trump != null)
+                                    game.State.Deck.OverrideTrumpCard(trump);
+
+                                game.State.Deck.OverrideToEmpty(); // tuščia kaladė su kozeriu
+                            }
+                        }
+                        else
+                        {
+                            // Kaladė dar pilna — nieko nekeičiam
+                        }
+                    }
+
+
+
+
+                    if (game.State.Attacker != null)
+                        game.State.CurrentAttackerIndex = game.State.Players.IndexOf(game.State.Attacker);
+                    if (game.State.Defender != null)
+                        game.State.CurrentDefenderIndex = game.State.Players.IndexOf(game.State.Defender);
+
+                    game.State.TableCards.Clear();
+                    myTurn = (game.State.Attacker == me);
+                    break;
+                }
+
+            // --- Gynėjo paėmimas (force) ---
+            case "FORCE_PICKUP_MULTI":
+                {
+                    if (!isHost || game == null) break;
+
+                    var defender = game.State.Defender;
+                    foreach (var pair in game.State.TableCards)
+                    {
+                        defender.Hand.Add(pair.Key);
+                        if (pair.Value != null)
+                            defender.Hand.Add(pair.Value);
+                    }
+
+                    game.State.TableCards.Clear();
+                    game.EndTurn(true);
+
+                    var act = new GameAction
+                    {
+                        Action = "PICKUP_MULTI",
+                        Data =
+{
+["attacker"] = game.State.Attacker.Name,
+["defender"] = game.State.Defender.Name,
+["players"] = JsonSerializer.Serialize(
+game.State.Players.ToDictionary(p => p.Name, p => p.Hand))
+}
+                    };
+
+                    await GameClient.SendGameActionAsync(act);
+                    break;
+                }
+
+            // --- Baigti ėjimą (force) ---
+            case "FORCE_ENDTURN_MULTI":
+                {
+                    if (!isHost || game == null) break;
+
+                    game.EndTurn(false);
+
+                    var deckCount = game.State.Deck?.CardsLeft ?? 0;
+                    var trumpCard = game.State.Deck?.TrumpCard;
+
+                    var act = new GameAction
+                    {
+                        Action = "ENDTURN_MULTI",
+                        Data =
+{
+["attacker"] = game.State.Attacker.Name,
+["defender"] = game.State.Defender.Name,
+["players"] = JsonSerializer.Serialize(
+game.State.Players.ToDictionary(p => p.Name, p => p.Hand)),
+["deckCount"] = deckCount.ToString(),
+["trumpCard"] = JsonSerializer.Serialize(trumpCard)
+}
+                    };
+
+                    await GameClient.SendGameActionAsync(act);
+                    break;
+                }
+
+
+            // --- Žaidimo pabaiga ---
+            case "GAME_OVER":
+                {
+                    game!.State.IsGameOver = true;
+
+                    if (action.Data.TryGetValue("players", out var playersJson))
+                    {
+                        var playersData = JsonSerializer.Deserialize<Dictionary<string, List<Card>>>(playersJson)!;
+                        foreach (var kv in playersData)
+                        {
+                            var pl = game.State.Players.FirstOrDefault(p => p.Name == kv.Key);
+                            if (pl != null)
+                                pl.Hand = kv.Value;
+                        }
+                    }
+
+                    myTurn = false;
+                    turnText = "Žaidimas baigtas!";
+                    await InvokeAsync(StateHasChanged);
+                    break;
+                }
+
+        }
+
+        // jei žaidimas baigtas, bet dar nebuvo išsiųstas GAME_OVER, hostas išsiunčia visiems
+        if (isHost && game?.State?.IsGameOver == true && action.Action != "GAME_OVER")
+        {
+            var winner = game.State.Players.FirstOrDefault(p => p.Hand != null && p.Hand.Count == 0);
+
+            var over = new GameAction
+            {
+                Action = "GAME_OVER",
+                Data =
+{
+["winner"] = winner?.Name ?? "Niekas",
+["players"] = JsonSerializer.Serialize(
+game.State.Players.ToDictionary(p => p.Name, p => p.Hand ?? new List<Card>()))
+}
+            };
+
+            await GameClient.SendGameActionAsync(over);
+        }
+
+
+
+        UpdateTurnText();
+        await InvokeAsync(StateHasChanged);
+
+    }
+
+    private void HandleRemoteAttack(GameAction action)
+    {
+        var suit = Enum.Parse<Suit>(action.Data["suit"]);
+        var val = int.Parse(action.Data["value"]);
+        var playerName = action.Data["player"];
+        var attacker = game!.State.Players.First(p => p.Name == playerName);
+        var card = attacker.Hand.FirstOrDefault(c => c.Suit == suit && c.Value == val);
+        if (card != null)
+            game.Attack(attacker, card);
+
+        myTurn = (game.State.Defender == me);
+    }
+
+    private async Task HandleRemoteDefend(GameAction action)
+    {
+        var asuit = Enum.Parse<Suit>(action.Data["attackSuit"]);
+        var aval = int.Parse(action.Data["attackValue"]);
+        var dsuit = Enum.Parse<Suit>(action.Data["suit"]);
+        var dval = int.Parse(action.Data["value"]);
+
+        var atkCard = game!.State.TableCards.Keys.FirstOrDefault(c => c.Suit == asuit && c.Value == aval);
+        if (atkCard == null) return;
+
+        var defender = game.State.Defender;
+        var defCard = defender.Hand.FirstOrDefault(c => c.Suit == dsuit && c.Value == dval);
+
+        if (defCard == null)
+        {
+            defCard = game.State.Players.SelectMany(p => p.Hand)
+            .FirstOrDefault(c => c.Suit == dsuit && c.Value == dval);
+            if (defCard == null) return;
+        }
+
+        game.Defend(defender, atkCard, defCard);
+
+        myTurn = (game.State.Attacker == me);
+        UpdateTurnText();
+        await InvokeAsync(StateHasChanged);
+    }
+
+    private void UpdateTurnText()
+    {
+        if (game == null || me == null)
+        {
+            turnText = "";
+            return;
+        }
+
+        //Jei žaidimas baigtas – rodom visiems tą pačią žinutę ir nieko nekeičiame
+        if (game.State.IsGameOver)
+        {
+            turnText = "Žaidimas baigtas!";
+            myTurn = false;
+            return;
+        }
+
+        // Toliau – įprastas tekstas tik jei dar žaidimas vyksta
+        turnText = game.GetTurnText(me);
+
+        // Jei žaidėjas jau be kortų, bet žaidimas tęsiasi – jis stebi
+        if (me.Hand.Count == 0)
+        {
+            if (game.State.TableCards != null && game.State.TableCards.Count > 0)
+            {
+                return;
+            }
+
+            myTurn = false;
+            turnText = "Baigei žaidimą ir stebi eigą.";
+            return;
+        }
+    }
+
+    private Random rnd = new();
+    private string GenerateRoomCode(int length = 6)
+    {
+        const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        return new string(Enumerable.Repeat(chars, length)
+        .Select(s => s[rnd.Next(s.Length)]).ToArray());
+    }
+}
+
+<style>
+    .page-wrapper {
+        background-color: #2c425a;
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: space-between;
+        box-sizing: border-box;
+        padding: 20px;
+    }
+
+    /* --- laukimo ekranas --- */
+    .waiting-container {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: center;
+        height: 80vh;
+        color: white;
+    }
+
+    .waiting-text {
+        font-size: 24px;
+        color: #f0e1b4;
+        margin-bottom: 15px;
+    }
+
+    .join-code-label {
+        font-size: 18px;
+    }
+
+    .join-code {
+        font-size: 36px;
+        font-weight: bold;
+        color: #f0e1b4;
+        margin: 5px 0;
+        padding: 6px 15px;
+        border: 2px solid #f0e1b4;
+        border-radius: 10px;
+    }
+
+    .join-subtext {
+        font-size: 14px;
+        opacity: 0.8;
+    }
+
+    .start-game-btn {
+        margin-top: 20px;
+        padding: 12px 25px;
+        font-size: 18px;
+        font-weight: bold;
+        border: none;
+        border-radius: 8px;
+        background-color: #f0e1b4;
+        color: #2c425a;
+        cursor: pointer;
+        transition: all 0.2s ease;
+    }
+
+    .start-game-btn:disabled {
+        background-color: #aaa;
+        cursor: not-allowed;
+    }
+
+    .start-game-btn:hover:not(:disabled) {
+        background-color: #ffd97a;
+        transform: translateY(-2px);
+    }
+
+    /* --- kelių oponentų rankos --- */
+    .multi-opponents {
+        position: fixed;
+        top: 10px;
+        /* buvo 40px */
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        flex-wrap: nowrap;
+        gap: 120px;
+        /* šiek tiek daugiau erdvės tarp žaidėjų */
+        width: 100%;
+        z-index: 10;
+    }
+
+    .opponent-hand-small {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        position: relative;
+        flex-wrap: nowrap;
+        transform: scale(0.85);
+
+    }
+
+    /* mažesnės kortos */
+    .opponent-block {
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 6px;
+    }
+
+    .opponent-info-bar {
+        background-color: #a2c2de;
+        border: 2px solid #f0e1b4;
+        border-radius: 15px;
+        width: 200px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.25);
+    }
+
+    .opponent-avatar {
+        width: 20px;
+        height: 20px;
+        background-color: #ddd;
+        border-radius: 50%;
+        border: 1px solid #bbb;
+    }
+
+    .opponent-label {
+        color: #1c2d3e;
+        font-size: 13px;
+        font-weight: 600;
+    }
+
+    .card-small {
+        width: 40px;
+        /* buvo 45px */
+        height: 62px;
+        /* buvo 70px */
+        margin: 0;
+    }
+
+    /* žaidėjo vardas virš kortų */
+    .opponent-name {
+        position: absolute;
+        top: -28px;
+        color: #f0e1b4;
+        font-size: 14px;
+        font-weight: 600;
+        text-align: center;
+        width: 100%;
+    }
+
+    /* --- stalo zonos --- */
+    /* --- Kortų poros ant stalo --- */
+    .table-cards {
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        gap: 45px;
+        margin-top: 200px;
+        /* šiek tiek žemiau nei oponentai */
+        margin-bottom: 120px;
+        flex-wrap: nowrap;
+    }
+
+    .table-pair {
+        position: relative;
+        width: 110px;
+        height: 160px;
+        /* užtikrina vietos abiem kortoms */
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
+
+    /* --- Atakos korta --- */
+    .attack-card {
+        width: 100px;
+        height: 150px;
+        position: relative;
+        z-index: 5;
+    }
+
+    /* --- Gynybos korta --- */
+    .defend-card {
+        position: absolute;
+        top: 40px;
+        /* pakelia virš atakos */
+        left: 25px;
+        /* paslenka šiek tiek į dešinę */
+        z-index: 10;
+        /* kad būtų virš atakos kortos */
+    }
+
+
+
+    /* --- žaidėjo ranka --- */
+    .player-hand {
+        position: fixed;
+        bottom: 70px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        justify-content: center;
+        gap: 0;
+        perspective: 600px;
+        height: 140px;
+        /* buvo 160px */
+        z-index: 10;
+    }
+
+    /* --- mygtukai --- */
+    .turn-buttons {
+        position: fixed;
+        right: 30px;
+        bottom: 100px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        z-index: 20;
+    }
+
+    /* --- Vieningas mygtukų stilius --- */
+    .turn-buttons button {
+        padding: 12px 24px;
+        font-weight: 600;
+        font-size: 16px;
+        border-radius: 10px;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s ease-in-out;
+        color: #fff;
+        background-color: #3a5a8c;
+        /* tamsiai mėlynas tonas */
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.25);
+    }
+
+    /* --- Hover efektas (aktyvus) --- */
+    .turn-buttons button:hover:not(:disabled) {
+        background-color: #507bc0;
+        /* šviesesnis mėlynas */
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+    }
+
+    /* --- Paspaudimo efektas --- */
+    .turn-buttons button:active:not(:disabled) {
+        transform: translateY(0);
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.25);
+    }
+
+    /* --- Neaktyvūs (disabled) --- */
+    .turn-buttons button:disabled {
+        background-color: #5f728f;
+        color: #dcdcdc;
+        cursor: not-allowed;
+        opacity: 0.7;
+        box-shadow: none;
+    }
+
+    /* --- Jei nori išlaikyti simbolinį skirtumą tarp dviejų mygtukų --- */
+    .btn-end-turn {
+        background-color: #3a5a8c;
+        /* mėlynas */
+    }
+
+    .btn-warning {
+        background-color: #d37b2a;
+        /* oranžinis variantas */
+    }
+
+    .btn-warning:hover:not(:disabled) {
+        background-color: #e0913e;
+    }
+
+    /* --- kozerio korta ir eilės informacija --- */
+    .deck-wrapper {
+        position: fixed;
+        bottom: 100px;
+        left: 40px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: flex-start;
+        width: 140px;
+        min-height: 200px;
+        z-index: 15;
+    }
+
+    .turn-info {
+        color: #f0e1b4;
+        font-size: 18px;
+        font-weight: 500;
+        text-align: center;
+        white-space: nowrap;
+        min-height: 24px;
+        line-height: 24px;
+        position: relative;
+        z-index: 25;
+        text-shadow: 1px 1px 3px rgba(0, 0, 0, 0.5);
+    }
+
+
+    /* --- žaidėjo info bar --- */
+    .player-info-bar {
+        position: fixed;
+        bottom: 5px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 55%;
+        height: 50px;
+        background-color: #a2c2de;
+        border-radius: 20px;
+        border: 2px solid #f0e1b4;
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        padding: 8px 16px;
+        box-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
+        z-index: 5;
+    }
+
+    /* žaidėjo avataras */
+    .profile-placeholder {
+        width: 40px;
+        /* buvo 50px */
+        height: 40px;
+        background-color: #ddd;
+        border-radius: 50%;
+        border: 2px solid #bbb;
+    }
+</style>

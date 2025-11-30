@@ -1,99 +1,144 @@
-using System; //  reikia atsitiktinių skaičių generavimui
-using System.Collections.Generic; // biblioteka sąrašams (List)
-using System.Linq; 
+using System;
+using System.Collections.Generic;
+using System.Linq;
 
-
-namespace card_game.GameLogic //  priklauso žaidimo logikos vardų sričiai
-
+namespace card_game.GameLogic
 {
-    // klasė, kuri aprašo kortų kaladę
     public class Deck
     {
-        // privatų sąrašas, kuriame saugomos visos kortos
         private List<Card> cards;
-
-        // atsitiktinių skaičių generatorius, naudojamas kortų maišymui
         private Random random = new Random();
 
-        // kozerio rūšis (pvz. širdys, būgnai ir tt.)
+        // Kozerio rūšis (suit)
         public Suit TrumpSuit { get; private set; }
 
-        // grąžina, kiek kortų liko kaladėj
+        // Kozerio korta (paskutinė kaladėje)
+        public Card? TrumpCard { get; private set; }
+
+        // Kiek kortų liko
         public int CardsLeft => cards.Count;
 
-        // konstruktorius, kuris sukuria naują kortų kaladę
+        // Konstruktorius — sukuria, išmaišo ir nustato kozerį
         public Deck()
         {
-            // sukuriamas tuščias kortų sąrašas
             cards = new List<Card>();
 
-            // generuojamos  52 kortos (nuo 2 iki tūzo kiekvienai rūšiai)
+            // Sukuriamos 52 kortos (nuo 2 iki A kiekvienai rūšiai)
             for (int value = 2; value <= 14; value++)
             {
-                // eina per visas rūšis (H, D, C, S)
                 foreach (Suit suit in Enum.GetValues(typeof(Suit)))
                 {
-                    // pridedama nauja korta su konkrečia rūšimi ir reikšme
                     cards.Add(new Card(suit, value));
                 }
             }
 
-            // išmaišomos visos kortos
             Shuffle();
 
-            // paimama paskutinė korta iš kaladės (naudojama kozerio nustatymui)
-            var bottomCard = PeekBottomCard();
+            // Paskutinė korta yra kozeris
+            var bottomCard = cards[^1];
+            TrumpCard = bottomCard;
+            TrumpSuit = bottomCard.Suit;
+        }
+        // 🔹 Alternatyvus konstruktorius — naudojamas sinchronizuojant būseną tarp klientų
+        public Deck(List<Card> existingCards, Card? trumpCard = null)
+        {
+            cards = existingCards;
+            if (trumpCard != null)
+            {
+                TrumpCard = trumpCard;
+                TrumpSuit = trumpCard.Suit;
+            }
+            else if (cards.Count > 0)
+            {
+                TrumpCard = cards[^1];
+                TrumpSuit = cards[^1].Suit;
+            }
+        }
+        public List<Card> GetAllCards()
+        {
+            // Grąžiname visas kortas, išskyrus kozerio kortą
+            var list = new List<Card>(cards);
 
-            // nustatoma, kad kozerio rūšis būtų tokia pati kaip paskutinės kortos
-            TrumpSuit = PeekBottomCard()?.Suit ?? Suit.Hearts;
+            if (TrumpCard != null)
+            {
+                // užtikrinam, kad ta pati korta nebūtų įtraukta du kartus
+                list.RemoveAll(c => c.Suit == TrumpCard.Suit && c.Value == TrumpCard.Value);
+            }
+
+            return list;
         }
 
-        // funkcija, kuri sumaišo kortas kaladėje atsitiktine tvarka
+        // Kortų maišymas (Fisher-Yates algoritmas)
         public void Shuffle()
         {
-            // n = kiek kortų yra kaladėje
             int n = cards.Count;
-
-            // kol dar yra kortų maišymui
             while (n > 1)
             {
-                // sumažinamas skaitiklis
                 n--;
-
-                // atsitiktinai parenkamas kortos indeksas
                 int k = random.Next(n + 1);
-
-                // laikinas kintamasis kortų apsikeitimui
                 var temp = cards[k];
-
-                // sukeičia vietomis dvi kortas
                 cards[k] = cards[n];
                 cards[n] = temp;
             }
         }
 
-        // funkcija, kuri ištraukia viršutinę kortą iš kaladės
-        public Card? DrawCard()
+        // Kortos traukimas
+    private bool trumpTaken = false;
+
+public Card? DrawCard()
+{
+    // Jei dar turim kortų – traukiam paprastai
+    if (cards.Count > 0)
+    {
+        // jei liko tik kozeris — paimam ją VIENĄ kartą
+        if (cards.Count == 1 && cards[0].Equals(TrumpCard))
         {
-            // jei kaladėje nėra kortų, grąžinama null reikšmė
-            if (cards.Count == 0)
-                return null;
-
-            // paimama pirmoji (viršutinė) korta
-            Card topCard = cards[0];
-
-            // pašalinama ši korta iš kaladės
-            cards.RemoveAt(0);
-
-            // grąžinama paimta korta
-            return topCard;
+            trumpTaken = true;
+            var last = cards[0];
+            cards.Clear();
+            return last;
         }
 
-        // funkcija, kuri grąžina paskutinę kortą (bet jos nepašalina)
+        // įprastai traukiam iš viršaus
+        Card topCard = cards[0];
+        cards.RemoveAt(0);
+        return topCard;
+    }
+
+    // Jei kortų nebėra, bet kozeris dar nepaimtas — leidžiam jį paimti vieną kartą
+    if (!trumpTaken && TrumpCard != null)
+    {
+        trumpTaken = true;
+        return TrumpCard;
+    }
+
+    // Visiškai tuščia kaladė
+    return null;
+}
+
+
+
+        // gauti paskutinę kortą (kozerį)
         public Card? PeekBottomCard()
         {
-            // jei kaladė nėra tuščia, grąžinama paskutinė korta; kitaip – null
-            return cards.Count > 0 ? cards[^1] : null;
+            return TrumpCard;
+        }
+
+        // pakeisti kozerio kortą (naudojama kai prisijungia guest)
+        public void OverrideTrumpCard(Card card)
+        {
+            if (cards.Count > 0)
+            {
+                cards[^1] = card;
+                TrumpCard = card;
+                TrumpSuit = card.Suit;
+            }
+        }
+
+        public void OverrideToEmpty()
+        {
+            cards.Clear();
         }
     }
+
 }

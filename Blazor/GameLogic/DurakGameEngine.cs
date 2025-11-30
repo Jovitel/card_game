@@ -153,33 +153,82 @@ namespace card_game.GameLogic // nurodo, kad klasė priklauso žaidimo logikos v
         // funkcija, kuri užbaigia ėjimą (kai gynėjas paima kortas arba visos atakos atmuštos)
         public void EndTurn(bool defenderPickedUp)
         {
-            // Išvalome stalą
+            //Išvalom stalą
             State.TableCards.Clear();
 
-            // Papildome rankas kortomis iš kaladės (visada nuo atakuotojo)
+            //  Papildome rankas kortomis iš kaladės (visada nuo atakuotojo ratu)
             RefillHands();
 
-            if (defenderPickedUp)
+            // pašalinam žaidėjus be kortų iš aktyvaus rato (bet paliekam juos žiūrėti)
+            var activePlayers = State.Players.Where(p => p.Hand.Count > 0).ToList();
+
+            // jei liko mažiau nei 2 aktyvūs – žaidimas baigtas
+            if (activePlayers.Count < 2)
             {
-                // Gynėjas pasiėmė kortas:
-                // 2 žaidėjų žaidime atakuotojas lieka tas pats,
-                // gynėjas taip pat lieka tas pats – todėl indeksų nekeičiam.
+                State.IsGameOver = true;
+                return;
+            }
+
+            // pritaikom naują rotaciją tik pagal aktyvius žaidėjus
+            // randam atakuotojo ir gynėjo pozicijas aktyviame sąraše
+            var attackerIndex = activePlayers.IndexOf(State.Attacker);
+            var defenderIndex = activePlayers.IndexOf(State.Defender);
+
+            // jei atakuotojas iškrito (neturi kortų) — perstumiam prie kito
+            if (attackerIndex == -1)
+            {
+                attackerIndex = 0; // nuo pirmo aktyvaus
+                State.Attacker = activePlayers[attackerIndex];
+            }
+
+            // jei gynėjas iškrito — perstumiam prie kito aktyvaus
+            if (defenderIndex == -1)
+            {
+                defenderIndex = (attackerIndex + 1) % activePlayers.Count;
+                State.Defender = activePlayers[defenderIndex];
+            }
+
+            // MULTI-žaidėjų rotacija
+            if (activePlayers.Count > 2)
+            {
+                if (defenderPickedUp)
+                {
+                    // Gynėjas pasiėmė kortas → naujas atakuotojas po jo
+                    attackerIndex = (defenderIndex + 1) % activePlayers.Count;
+                    defenderIndex = (attackerIndex + 1) % activePlayers.Count;
+                }
+                else
+                {
+                    // Gynėjas apsigynė → tampa nauju atakuotoju
+                    attackerIndex = defenderIndex;
+                    defenderIndex = (attackerIndex + 1) % activePlayers.Count;
+                }
             }
             else
             {
-                // Gynėjas apsigynė:
-                // Dabar jis tampa nauju atakuotoju,
-                // o buvęs atakuotojas tampa gynėju.
-                State.CurrentAttackerIndex = State.CurrentDefenderIndex;
-                State.CurrentDefenderIndex = (State.CurrentAttackerIndex + 1) % State.Players.Count;
+                // === 1v1 režimas ===
+                if (!defenderPickedUp)
+                {
+                    // Gynėjas apsigynė – keičiam roles
+                    attackerIndex = defenderIndex;
+                    defenderIndex = (attackerIndex + 1) % activePlayers.Count;
+                }
+                // jei pasiėmė – atakuotojas lieka tas pats
             }
 
-            // Atnaujiname dabartinius atakuotoją ir gynėją
-            State.Attacker = State.Players[State.CurrentAttackerIndex];
-            State.Defender = State.Players[State.CurrentDefenderIndex];
+            // Pritaikom rezultatus į bendrą žaidimo būseną
+            State.Attacker = activePlayers[attackerIndex];
+            State.Defender = activePlayers[defenderIndex];
+            State.CurrentAttackerIndex = State.Players.IndexOf(State.Attacker);
+            State.CurrentDefenderIndex = State.Players.IndexOf(State.Defender);
 
-            // Patikriname, ar žaidimas nepasibaigė
+            if (State.TableCards.Count > 0)
+                return; // negalim baigti round'o kol yra kortų ant stalo
+
+
+            // Patikrinam, ar dabar dar yra kas žaistų
             CheckGameOver();
+
         }
 
 
@@ -199,13 +248,29 @@ namespace card_game.GameLogic // nurodo, kad klasė priklauso žaidimo logikos v
         // funkcija, kuri patikrina, ar žaidimas baigtas
         private void CheckGameOver()
         {
-            // skaičiuojama, kiek žaidėjų dar turi kortų arba liko kortų kaladėje
-            int activePlayers = State.Players.Count(p => p.HasCards || State.Deck.CardsLeft > 0);
+            // jei žaidimas jau pažymėtas baigtu – nieko nedarom
+            if (State.IsGameOver)
+                return;
 
-            // jei liko tik vienas aktyvus žaidėjas, žaidimas baigiamas
-            if (activePlayers <= 1)
+            // jei dar yra kortų ant stalo – round'as nebaigtas
+            if (State.TableCards.Count > 0)
+                return;
+
+            // jei dar yra kortų kaladėje – žaidimas tęsiasi
+            if (State.Deck != null && State.Deck.CardsLeft > 0)
+                return;
+
+            // aktyvūs žaidėjai – tie, kurie dar turi kortų rankoje
+            var activePlayers = State.Players.Where(p => p.Hand.Count > 0).ToList();
+
+            // jei liko tik vienas žaidėjas su kortomis – žaidimas baigtas
+            if (activePlayers.Count <= 1)
+            {
                 State.IsGameOver = true;
+            }
         }
+
+
 
         // asinchroninė versija – leidžia vizualiai parodyti pertrauką prieš ėjimo pabaigą
         public async Task EndTurnWithDelay(bool defenderPickedUp, Func<Task>? refreshUI = null)

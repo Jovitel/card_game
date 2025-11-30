@@ -3,66 +3,98 @@ using System.Text.Json;
 
 namespace card_game.Services
 {
-    // Bendras veiksmo „vokas“ (JSON), kad būtų lengva plėsti
+    // Bendras veiksmo „vokas“ (JSON) – naudojamas siųsti tarp kliento ir serverio
     public class GameAction
     {
-        public string Action { get; set; } = "";                 // Pvz.: "INIT", "ATTACK", "DEFEND", "ENDTURN"
-        public Dictionary<string, string> Data { get; set; } = new(); // Lankstūs raktai: "p", "suit", "value", ...
+        public string Action { get; set; } = "";                  // Pvz.: "INIT", "ATTACK", "DEFEND", "ENDTURN"
+        public Dictionary<string, string> Data { get; set; } = new(); // Dinamiškas duomenų rinkinys
     }
 
     public class GameClientService
     {
-        private HubConnection? _hubConnection;
-        private string? _roomCode;
+        private HubConnection? _hubConnection; // SignalR jungtis su serveriu
+        private string? _roomCode;             // Dabartinio kambario kodas
 
-        // Įvykiai, kuriuos klausys puslapis (Game1vs1)
-        public event Action? OnStartGame;                         // Kai kambaryje jau 2 žaidėjai
-        public event Action? OnRoomCreated;                      // Kai sėkmingai sukuriamas kambarys (host'ui)
-        public event Action? OnPlayerJoined;                     // Kai kas nors prisijungia (host'ui)
-        public event Action<string>? OnPlayerLeft;               // Kai kas nors išeina
-        public event Action<string>? OnErrorReceived;            // Klaidos iš hub'o
-        public event Action<GameAction>? OnGameActionReceived;   // Visi žaidimo veiksmai (INIT/ATTACK/DEFEND/ENDTURN...)
+        // Laikome prisijungusių žaidėjų sąrašą ir savo vardą
+        public List<string> ConnectedPlayers { get; private set; } = new();  // Prisijungusių žaidėjų vardai
+        public string MyName { get; private set; } = $"Player_{Guid.NewGuid().ToString()[..4]}"; // Automatinis vardas
 
+        // Įvykiai, kuriuos klausys Blazor puslapiai (UI pusė)
+        public event Action? OnStartGame;                          // Kai žaidimas prasideda
+        public event Action? OnRoomCreated;                        // Kai kambarys sukurtas
+        public event Action? OnPlayerJoined;                       // Kai prisijungia naujas žaidėjas
+        public event Action<string>? OnPlayerLeft;                 // Kai žaidėjas išeina
+        public event Action<string>? OnErrorReceived;              // Kai gaunama klaida
+        public event Action<GameAction>? OnGameActionReceived;     // Kai gaunamas žaidimo veiksmas (pvz. ataka)
+        public event Action<List<string>>? OnReadyToStart;         // Nauja – kai hub praneša, kad galima pradėti multi žaidimą
+
+        // Patogus property patikrinti ar vis dar prijungta prie SignalR
         public bool IsConnected => _hubConnection?.State == HubConnectionState.Connected;
 
+        // Prisijungimo dalis 
         public async Task ConnectAsync()
         {
+            // Jei jau prijungta – nereikia kartoti
             if (_hubConnection != null && IsConnected)
                 return;
 
+            // Sukuriame naują SignalR jungtį į serverį
             _hubConnection = new HubConnectionBuilder()
                 .WithUrl("https://localhost:7200/gamehub")
                 .WithAutomaticReconnect()
                 .Build();
 
-            // === Hub'o siunčiami įvykiai ===
+            // HUB'O SIUNČIAMI ĮVYKIAI
+
+            // Kai serveris pasako, kad žaidimas prasideda
             _hubConnection.On("StartGame", () =>
             {
                 OnStartGame?.Invoke();
             });
 
+            // Kai sėkmingai sukuriamas kambarys
             _hubConnection.On("RoomCreated", (string roomCode) =>
             {
                 _roomCode = roomCode;
                 OnRoomCreated?.Invoke();
             });
 
-            _hubConnection.On("PlayerJoined", () =>
+            // Kai naujas žaidėjas prisijungia
+            _hubConnection.On<string>("PlayerJoined", (string playerName) =>
             {
+                if (!ConnectedPlayers.Contains(playerName))
+                    ConnectedPlayers.Add(playerName);
+
+                Console.WriteLine($"Žaidėjas prisijungė: {playerName}");
                 OnPlayerJoined?.Invoke();
             });
 
-            _hubConnection.On<string>("PlayerLeft", (connId) =>
+            // Kai serveris praneša, kad galima pradėti multi žaidimą
+            _hubConnection.On<List<string>>("ReadyToStart", (List<string> players) =>
             {
-                OnPlayerLeft?.Invoke(connId);
+                ConnectedPlayers = players;
+                OnReadyToStart?.Invoke(players);
+                Console.WriteLine("Galima pradėti žaidimą – prisijungę: " + string.Join(", ", players));
             });
 
+            // Kai žaidėjas išeina iš kambario
+            _hubConnection.On<string>("PlayerLeft", (string playerName) =>
+            {
+                if (ConnectedPlayers.Contains(playerName))
+                    ConnectedPlayers.Remove(playerName);
+
+                Console.WriteLine($"Žaidėjas paliko: {playerName}");
+                OnPlayerLeft?.Invoke(playerName);
+            });
+
+            // Kai serveris grąžina klaidą
             _hubConnection.On<string>("Error", (errorMsg) =>
             {
+                Console.WriteLine($"Serverio klaida: {errorMsg}");
                 OnErrorReceived?.Invoke(errorMsg);
             });
 
-            // Visi žaidimo veiksmai (JSON)
+            // Kai gaunamas žaidimo veiksmas (bet koks JSON)
             _hubConnection.On<string>("ReceiveGameAction", (json) =>
             {
                 try
@@ -77,23 +109,37 @@ namespace card_game.Services
                 }
             });
 
+            // Prisijungiame prie serverio
             await _hubConnection.StartAsync();
-            Console.WriteLine("Connected to SignalR hub");
+            Console.WriteLine($"Prisijungta prie SignalR kaip {MyName}");
         }
 
-        public async Task CreateRoomAsync(string roomCode)
+        // Kambario valdymas 
+
+        // Sukuria naują kambarį (host pusėje)
+        // gameMode gali būti "1v1" arba "1vsmulti"
+        public async Task CreateRoomAsync(string roomCode, string gameMode)
         {
             _roomCode = roomCode;
-            await _hubConnection!.SendAsync("CreateRoom", roomCode);
+            ConnectedPlayers.Clear();
+            ConnectedPlayers.Add(MyName);
+
+            await _hubConnection!.SendAsync("CreateRoom", roomCode, MyName, gameMode);
+            Console.WriteLine($"Sukurtas kambarys {roomCode} (host: {MyName}, režimas: {gameMode})");
         }
 
+
+        // Prisijungia prie egzistuojančio kambario (guest pusėje)
         public async Task JoinRoomAsync(string roomCode)
         {
             _roomCode = roomCode;
-            await _hubConnection!.SendAsync("JoinRoom", roomCode);
+            await _hubConnection!.SendAsync("JoinRoom", roomCode, MyName);
+            Console.WriteLine($"Prisijungta prie kambario {roomCode} kaip {MyName}");
         }
 
-        // Bendra vieta siųsti veiksmus į dabartinį kambarį
+        // Žaidimo veiksmai  
+
+        // Siunčia bet kokį žaidimo veiksmą (pvz.: ataka, gynyba, pabaiga)
         public async Task SendGameActionAsync(GameAction action)
         {
             if (_roomCode == null)
@@ -106,12 +152,37 @@ namespace card_game.Services
             await _hubConnection!.SendAsync("SendGameAction", _roomCode, json);
         }
 
+        // Atsijungia nuo serverio (naudinga kai išeinama iš žaidimo)
         public async Task DisconnectAsync()
         {
             if (_hubConnection is not null)
+            {
                 await _hubConnection.StopAsync();
+                Console.WriteLine("Atsijungta nuo SignalR serverio.");
+            }
+        }
+        // Siunčia prašymą serveriui, kad gynėjas paėmė kortas (multiplayer režimas)
+        public async Task RequestPickUpAsync()
+        {
+            if (_hubConnection == null || _roomCode == null)
+            {
+                Console.WriteLine("Neprisijungta prie hub'o arba nėra kambario kodo.");
+                return;
+            }
+
+            await _hubConnection.SendAsync("RequestPickUp", _roomCode, MyName);
+            Console.WriteLine($"Išsiųstas 'RequestPickUp' signalas iš {MyName}");
         }
 
-        
+        public async Task RequestEndTurnAsync()
+{
+    if (_hubConnection == null || _roomCode == null)
+        return;
+
+    await _hubConnection.SendAsync("RequestEndTurn", _roomCode, MyName);
+    Console.WriteLine($"Išsiųstas 'RequestEndTurn' signalas ({MyName})");
+}
+
+
     }
 }
