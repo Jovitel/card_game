@@ -1,6 +1,6 @@
-@page "/game/1vsbot" 
-@layout MainLayout 
-@using card_game.GameLogic 
+@page "/game/1vsbot"
+@layout MainLayout
+@using card_game.GameLogic
 @using card_game.GameDesign
 @using CardGame.Shared.Models
 @inject NavigationManager NavigationManager
@@ -8,159 +8,161 @@
 @inject UserSession UserSession
 
 <div class="page-wrapper">
-    @if (game != null && humanPlayer != null && bot != null) // tik jei žaidimas ir žaidėjai yra inicializuoti
+    @if (game != null && humanPlayer != null && bot != null)
     {
-        <BotDeck Bot="bot" />
-        // išsaugo dabartinė žaidimo būsena
-        var state = game!.State; 
-        
-        // nustato, ar žaidėjas gali baigti ėjimą
-        var canEndTurn = game.CanEndTurn(humanPlayer);
-        <h4 class="turn-info">@game.GetTurnText(humanPlayer)</h4>// rodo kieno dabar ėjimas (tekstas)
-        
-        // mygtukas leidžia žaidėjui baigti ėjimą, jei jis leidžiamas
-        <button class="btn btn-end-turn" @onclick="EndTurn" disabled="@(!canEndTurn)">
-            Baigti ėjimą
-        </button>
-
-        @if (state?.TableCards == null || state.TableCards.Count == 0) // jei ant stalo nėra kortų
-        {            
-        }
-        else // jei kortos yra ant stalo
-        {<div class="table-cards">
-            @for (int i = 0; i < 6; i++)
-            {
-                <div class="table-pair">
-
-                    @if (i < state.TableCards.Count)
+        <!-- BOT viršuje -->
+        <div class="multi-opponents">
+            <div class="opponent-block">
+                <div class="opponent-info-bar">
+                    <div class="opponent-avatar"></div>
+                    <span class="opponent-label">@bot!.Name</span>
+                </div>
+                <div class="opponent-hand-small">
+                    @for (int i = 0; i < bot.Hand.Count; i++)
                     {
-                        var pair = state.TableCards.ElementAt(i);
-
-                        <!-- Atakos korta (pirmoji poroje) -->
-                        <GameCard Card="@pair.Key" Disabled="true" class="attack-card"/>
-
-                        <!-- Gynybos korta, jei jau atsikirsta -->
-                        @if (pair.Value != null)
-                        {
-                            <GameCard Card="@pair.Value" Disabled="true" class="defend-card" />
-                        }
-                        else
-                        {
-                            <div class="defend-placeholder"></div> <!-- kai dar neatsikirsta -->
-                        }
+                        <div class="card-small"><BackCard /></div>
                     }
-        
                 </div>
-            }
-         </div>
-        }
-        <div class="deck-wrapper">
-            <DeckView 
-                RemainingCardsCount="state.Deck.CardsLeft"
-                TrumpCard="state.Deck.PeekBottomCard()" 
-            />
+            </div>
         </div>
 
+        <!-- Kaladė ir eilės tekstas -->
+       <div class="deck-wrapper">
+    <DeckView 
+        RemainingCardsCount="game.State.Deck.CardsLeft"
+        TrumpCard="game.State.Deck.TrumpCard" />
+    <div class="turn-info">@game.GetTurnText(humanPlayer)</div>
+</div>
 
-        <div class="card-row">
-            @for (int i = 0; i < humanPlayer.Hand.Count; i++)
+        <!-- Mygtukai -->
+        <div class="turn-buttons">
+            <button class="btn btn-end-turn" @onclick="EndTurn"
+                disabled="@(!game.CanEndTurn(humanPlayer) || game.State.IsGameOver)">
+                Baigti ėjimą
+            </button>
+
+            <button class="btn btn-warning" @onclick="PickUpCards"
+                disabled="@(game.State.Defender != humanPlayer || game.State.TableCards.Count == 0)">
+                Paimti kortas
+            </button>
+        </div>
+
+        <!-- Kortos ant stalo -->
+        <div class="table-cards">
+            @if (game.State.TableCards != null && game.State.TableCards.Count > 0)
             {
-                var card = humanPlayer.Hand[i];
-                bool canPlay = humanPlayer.CanPlayCard(game, card);
-
-                <!-- Pridėta 'tooltip-container' klasė ir 'data-tooltip' atributas neaktyvioms kortoms -->
-                <div class="@(canPlay ? "" : "tooltip-container")"
-                     data-tooltip="@(canPlay ? "" : "You cannot use this card")"
-                     style="--index:@i; --count:@humanPlayer.Hand.Count;">
-                    <GameCard Card="card"
-                            Disabled="!canPlay"
-                            OnPlay="PlayCard" />
-                </div>
+                var tableSnapshot = game.State.TableCards.ToList();
+                @for (int i = 0; i < 6; i++)
+                {
+                    <div class="table-pair">
+                        @if (i < tableSnapshot.Count)
+                        {
+                            var pair = tableSnapshot[i];
+                            <GameCard Card="@pair.Key" Disabled="true" class="attack-card" />
+                            @if (pair.Value != null)
+                            {
+                                <GameCard Card="@pair.Value" Disabled="true" class="defend-card" />
+                            }
+                            else
+                            {
+                                <div class="defend-placeholder"></div>
+                            }
+                        }
+                    </div>
+                }
             }
         </div>
-        
+
+        <!-- Žaidėjo ranka -->
+        @if (humanPlayer?.Hand != null)
+        {
+            <div class="card-row player-hand">
+                @for (int i = 0; i < humanPlayer.Hand.Count; i++)
+                {
+                    var card = humanPlayer.Hand[i];
+                    bool canPlay =
+                        ((game.State.Attacker == humanPlayer && game.CanAttackWith(humanPlayer, card)) ||
+                         (game.State.Defender == humanPlayer && game.CanDefendWith(humanPlayer, card)));
+
+                    <div class="@(canPlay ? "" : "tooltip-container")"
+                         data-tooltip="@(canPlay ? "" : "Negalima naudoti kortos")"
+                         style="--index:@i; --count:@humanPlayer.Hand.Count;">
+                        <GameCard Card="card" Disabled="!canPlay" OnPlay="() => PlayCard(card)" />
+                    </div>
+                }
+            </div>
+        }
+
+        <!-- Žaidėjo info -->
         <div class="player-info-bar">
             <div class="profile-placeholder"></div>
-        </div>  
+            <span class="opponent-label" style="margin-left:10px;">
+@(UserSession?.Username ?? humanPlayer?.Name ?? "Žaidėjas")
+</span>
+
+        </div>
     }
-    else // jei žaidimas dar nepradėtas
+    else
     {
         <button class="btn btn-primary" @onclick="StartGame">Pradėti žaidimą</button>
     }
 </div>
-     
+
+
 @code {
+    private DurakGameEngine? game;
+    private Player? humanPlayer;
+    private BotPlayer? bot;
+    private bool statsSent = false;
     private bool playerWon = false;
-    
-    private DurakGameEngine? game;  // žaidimo variklio objektas
 
-    private Player? humanPlayer;  // žmogaus žaidėjas
-
-    private BotPlayer? bot;  // boto žaidėjas
-    private bool statsSent = false;  // <-- čia naujas flag
-
-
-    // funkcija, kuri paleidžia žaidima
     private async Task StartGame()
     {
-
-        humanPlayer = new Player("Žaidėjas"); // sukuriamas žmogaus žaidėjas
-
-        bot = new BotPlayer("Bot");// sukuriamas bot žaidėjas
-
-        // sukuriamas naujas žaidimo variklis su abiem žaidėjais
+        humanPlayer = new Player("Žaidėjas");
+        bot = new BotPlayer("Bot");
         game = new DurakGameEngine(new List<Player> { humanPlayer, bot });
-        
-        
-        await RefreshUI();  // atnaujinamas ekranas
-        // Toliau paleidžiama boto eilė, jei jam priklauso (galima pridėti patikrinimą)
+
+        Console.WriteLine("[INFO] Žaidimas pradėtas (1vsBot)");
+        await RefreshUI();
+
         if (game.State.Attacker.IsBot)
         {
-            await game.RunBotTurn(RefreshUI); // kviečiamas boto ėjimas, jei jam priklauso
+            Console.WriteLine("[DEBUG] Pirmas ėjimas priklauso botui.");
+            await game.RunBotTurn(RefreshUI);
         }
-        await RefreshUI(); // dar kartą atnaujinti, jei botui priklausė ėjimas ir jis nebaigė žaidimo
     }
 
-    // funkcija, kuri vykdoma kai žaidėjas paspaudžia ant kortos
     private async Task PlayCard(Card card)
     {
-        // jei žaidimas arba žaidėjas neegzistuoja, funkcija nutraukiama
         if (game == null || humanPlayer == null)
             return;
 
-        // jei žmogus yra atakuotojas
+        Console.WriteLine($"[DEBUG] Žaidėjas bando sužaisti {card}");
+
+        // ataka
         if (game.State.Attacker == humanPlayer)
         {
-            // bandoma atlikti ataką su pasirinkta korta
             if (game.Attack(humanPlayer, card))
             {
-                // Įrašome į istoriją
                 UserSession.AddGameHistoryEntry(
                     turnNumber: game.State.TurnNumber,
                     player: humanPlayer.Name,
                     action: "ATTACK",
                     cardPlayed: card
                 );
-                // atnaujinamas vaizdas
+                Console.WriteLine($"[ACTION] {humanPlayer.Name} atakavo su {card}");
                 await RefreshUI();
-
-                // trumpa pauzė
                 await Task.Delay(800);
-
-                // leidžiama botui atlikti savo ėjimą
                 await game.RunBotTurn(RefreshUI);
             }
         }
-        // jei žmogus yra gynėjas
+        // gynyba
         else if (game.State.Defender == humanPlayer)
         {
-            // randama paskutinė atakuojanti korta ant stalo
             var attackCard = game.State.TableCards.FirstOrDefault(p => p.Value == null).Key;
 
-            // jei galima gintis šia korta
             if (attackCard != null && game.Defend(humanPlayer, attackCard, card))
             {
-                // Įrašome į istoriją
                 UserSession.AddGameHistoryEntry(
                     turnNumber: game.State.TurnNumber,
                     player: humanPlayer.Name,
@@ -168,68 +170,80 @@
                     cardPlayed: card,
                     attackCard: attackCard
                 );
-                // atnaujinamas ekranas
-                await RefreshUI();
 
-                // trumpa pauzė
+                Console.WriteLine($"[ACTION] {humanPlayer.Name} ginasi su {card} nuo {attackCard}");
+
+                await RefreshUI();
                 await Task.Delay(800);
 
-                // jei visos atakos yra atmuštos
                 if (game.State.TableCards.All(p => p.Value != null))
                 {
-                    // jei atakavo botas, ėjimas užbaigiamas automatiškai
-                    if (game.State.Attacker.IsBot)
-                    {
-                        await game.EndTurnWithDelay(false, RefreshUI);
-                        await game.RunBotTurn(RefreshUI);
-                    }
-                    else
-                    {
-                        // jei atakavo žaidėjas, paliekama galimybė pridėti dar kortų
-                        await RefreshUI();
-                        // ėjimas nesibaigia automatiškai
-                    }
+                    Console.WriteLine("[DEBUG] Visos atakos atmuštos, baigiamas ėjimas.");
+                    await game.EndTurnWithDelay(false, RefreshUI);
+                    await game.RunBotTurn(RefreshUI);
                 }
+            }
+            else
+            {
+                Console.WriteLine($"[WARN] Negalima gintis su {card}");
             }
         }
 
-        // atnaujinamas ekranas po bet kokio veiksmo
         await RefreshUI();
     }
 
-    // funkcija, kai žaidėjas paspaudžia mygtuką 'baigti ėjimą'
-    private async Task EndTurn()
+    private async Task PickUpCards()
     {
-        // jei žaidimas neegzistuoja, funkcija nutraukiama
-        if (game == null)
+        if (game == null || humanPlayer == null)
+            return;
+        if (game.State.Defender != humanPlayer)
             return;
 
-        // užbaigiamas ėjimas
-        await game.EndTurnWithDelay(false, RefreshUI);
+        Console.WriteLine("[INFO] Žaidėjas pasirinko „Paimti kortas“.");
 
-        // įrašome „ENDTURN“ į istoriją
+        foreach (var pair in game.State.TableCards)
+        {
+            humanPlayer.Hand.Add(pair.Key);
+            if (pair.Value != null)
+                humanPlayer.Hand.Add(pair.Value);
+        }
+
+        UserSession.AddGameHistoryEntry(
+            turnNumber: game.State.TurnNumber,
+            player: humanPlayer.Name,
+            action: "PICKUP"
+        );
+
+        game.State.TableCards.Clear();
+        await game.EndTurnWithDelay(true, RefreshUI);
+        await game.RunBotTurn(RefreshUI);
+    }
+
+    private async Task EndTurn()
+    {
+        if (game == null) return;
+
+        Console.WriteLine("[INFO] Žaidėjas baigia ėjimą.");
+
         UserSession.AddGameHistoryEntry(
             turnNumber: game.State.TurnNumber,
             player: game.State.Attacker.Name,
             action: "ENDTURN"
         );
 
-        // leidžiama botui pradėti savo ėjimą
+        await game.EndTurnWithDelay(false, RefreshUI);
         await game.RunBotTurn(RefreshUI);
     }
 
-    // funkcija, kuri atnaujina vartotojo sąsają
     private async Task RefreshUI()
     {
         if (game?.State?.IsGameOver == true && !statsSent)
         {
-            statsSent = true; // vieną kartą siųsti statistiką
-
+            statsSent = true;
             playerWon = (humanPlayer?.Hand?.Count ?? 1) == 0;
             var result = playerWon ? "winner" : "loser";
 
             Console.WriteLine($"Game over. PlayerWon: {playerWon}");
-            Console.WriteLine($"UserSession.UserId = {UserSession.UserId}");
 
             if (UserSession.UserId > 0)
             {
@@ -262,145 +276,242 @@
     }
 }
 
+
 <style>
-.table-cards {
-    display: flex;
-    justify-content: center;   /* centre visos kortos */
-    gap: 40px;
-    flex-wrap: nowrap;         /* visos vienoje eilutėje */
-    margin-bottom: 50px;         
-}
-.table-pair {
-    position: relative;
+.page-wrapper {
+    background-color: #2c425a;
+    min-height: 100vh;
     display: flex;
     flex-direction: column;
     align-items: center;
+    justify-content: space-between;
+    box-sizing: border-box;
+    padding: 20px;
 }
-.attack-card {
+
+.multi-opponents {
+    position: fixed;
+    top: 10px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 120px;
     width: 100%;
-    height: 100%;
+    z-index: 10;
+}
+
+.opponent-hand-small {
+    display: flex;
+    flex-direction: row;
+    align-items: center;
+    justify-content: center;
+    gap: 4px;
+    transform: scale(0.85);
+}
+
+.opponent-info-bar {
+    background-color: #a2c2de;
+    border: 2px solid #f0e1b4;
+    border-radius: 15px;
+    width: 200px;
+    height: 40px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    gap: 6px;
+}
+
+.opponent-avatar {
+    width: 20px;
+    height: 20px;
+    background-color: #ddd;
+    border-radius: 50%;
+    border: 1px solid #bbb;
+}
+
+.opponent-label {
+    color: #1c2d3e;
+    font-size: 13px;
+    font-weight: 600;
+}
+
+.card-small {
+    width: 40px;
+    height: 62px;
+}
+
+.table-cards {
+    display: flex;
+    justify-content: center;
+    align-items: flex-start;
+    gap: 45px;
+    margin-top: 200px;     /* BUVO 200px – dabar aukščiau */
+    margin-bottom: 140px;  /* didesnis tarpas iki žaidėjo kortų */
+}
+.table-pair {
+    position: relative;
+    width: 110px;
+    height: 160px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.attack-card {
+    width: 100px;
+    height: 150px;
 }
 
 .defend-card {
     position: absolute;
-    top: 0;
-    left: 0;
-    transform: translate(30px, 35px); /* šiek tiek paslinkta */
-    z-index: 10; /* kad būtų virš atakos kortos */
+    top: 40px;
+    left: 25px;
 }
 
-
-.deck-wrapper {
-    position: fixed;      /* fiksuotas ekrane */
-    top: 50%;             /* vertikaliai centre */
-    left: 5px;           /* šiek tiek nuo kairio krašto */
-    transform: translateY(-50%); /* tiksliai centras vertikaliai */
-    z-index: 20;          /* virš kitų elementų */
+.player-hand {
+    position: fixed;
+    bottom: 90px;
+    left: 50%;
+    transform: translateX(-50%);
+    display: flex;
+    justify-content: center;
+    gap: 0;
 }
+ /* --- mygtukai --- */
+    .turn-buttons {
+        position: fixed;
+        right: 30px;
+        bottom: 100px;
+        display: flex;
+        flex-direction: column;
+        gap: 12px;
+        z-index: 20;
+    }
 
+    /* --- Vieningas mygtukų stilius --- */
+    .turn-buttons button {
+        padding: 12px 24px;
+        font-weight: 600;
+        font-size: 16px;
+        border-radius: 10px;
+        border: none;
+        cursor: pointer;
+        transition: all 0.2s ease-in-out;
+        color: #fff;
+        background-color: #3a5a8c;
+        /* tamsiai mėlynas tonas */
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.25);
+    }
+
+    /* --- Hover efektas (aktyvus) --- */
+    .turn-buttons button:hover:not(:disabled) {
+        background-color: #507bc0;
+        /* šviesesnis mėlynas */
+        transform: translateY(-2px);
+        box-shadow: 0 4px 8px rgba(0, 0, 0, 0.3);
+        color: #f0e1b4;
+    }
+
+    /* --- Paspaudimo efektas --- */
+    .turn-buttons button:active:not(:disabled) {
+        transform: translateY(0);
+        box-shadow: 0 2px 5px rgba(0, 0, 0, 0.25);
+    }
+
+    /* --- Neaktyvūs (disabled) --- */
+    .turn-buttons button:disabled {
+        background-color: #5f728f;
+        color: #dcdcdc;
+        cursor: not-allowed;
+        opacity: 0.7;
+        box-shadow: none;
+    }
+
+    /* --- Jei nori išlaikyti simbolinį skirtumą tarp dviejų mygtukų --- */
+    .btn-end-turn {
+        background-color: #3a5a8c;
+        /* mėlynas */
+    }
+
+    .btn-warning {
+        background-color: #d37b2a;
+        /* oranžinis variantas */
+    }
+
+    .btn-warning:hover:not(:disabled) {
+        background-color: #e0913e;
+    }
+
+
+.turn-info {
+    color: #f0e1b4;
+    font-size: 18px;
+    font-weight: 500;
+    text-align: center;
+    margin-top: 6px;
+}
 
 .player-info-bar {
-    width: 70%;                   /* užima dalį pločio */
-    height: 100px;                 /* maždaug mažiau nei pusė kortos aukščio */
-    background-color: #a2c2de;    /* šviesus fonas */
-    border-radius: 30px;
+    position: fixed;
+    bottom: 5px;
+    left: 50%;
+    transform: translateX(-50%);
+    width: 55%;
+    height: 50px;
+    background-color: #a2c2de;
+    border-radius: 20px;
     border: 2px solid #f0e1b4;
     display: flex;
-    justify-content: flex-start;
     align-items: center;
-    padding: 10px 20px;
-    box-shadow: 0 2px 6px rgba(0,0,0,0.3);
-    position: relative;
+    justify-content: flex-start;
+    padding: 8px 16px;
 }
 
 .profile-placeholder {
-    width: 50px;
-    height: 50px;
+    width: 40px;
+    height: 40px;
     background-color: #ddd;
     border-radius: 50%;
     border: 2px solid #bbb;
 }
-.page-wrapper {
-    background-color: #2c425a;
-    min-height: 100vh;           /* kad visada būtų per visą ekraną */
-    display: flex;
-    flex-direction: column;      /* kad elementai būtų išdėstyti vertikaliai */
-    justify-content: space-between; /* viršus–apačia tolygiai */
-    align-items: center;
-    padding: 20px;
-    box-sizing: border-box;
-}
-
-.card-row {
-    display: flex;
-    justify-content: center;
-    align-items: flex-end;       /* kad kortos „sėdėtų“ ant apačios */
-    gap: 10px;
-    flex-wrap: nowrap;
-}
-
-
-/
-/* mygtuko „Baigti ėjimą“ stilius */
-.btn-end-turn {
-    margin: 20px 0;
-    padding: 10px 20px;
-    font-weight: bold;
-    background-color: #2c425a;
-    color: white;
-    border-radius: 8px;
-    border: none;
-    cursor: pointer;
-}
-
-/* išjungtas „Baigti ėjimą“ mygtukas */
-.btn-end-turn:disabled {
-    background-color: #888;
-    cursor: not-allowed;
-}
-
-/* informacijos apie ėjimą stilius */
-.turn-info {
-    font-size: 18px;
-    font-weight: bold;
-    margin: 10px 0;
-    padding: 10px;
-    border-radius: 8px;
-    background-color: #f2f2f2;
-}
-/* --- TOOLTIP STILIAI --- */
 
 .tooltip-container {
-    position: relative; /* Suteikia kontekstą tooltip'ui */
-    /* Nustatome kursorį 'not-allowed', kad pabrėžtume, jog korta neaktyvi */
+    position: relative;
     cursor: not-allowed;
 }
+.deck-wrapper {
+    position: fixed;
+    top: 45%;               /* šiek tiek aukščiau, kad būtų per vidurį */
+    left: 40px;             /* kairėje pusėje ekrano */
+    transform: translateY(-50%);
+    display: flex;
+    flex-direction: column; /* leidžia info tekstą dėti po kalade */
+    align-items: center;
+    gap: 8px;               /* tarpas tarp kaladės ir teksto */
+    z-index: 20;
+}
 
-/* Rodomas tooltip'as užvedus pele ant neaktyvios kortos konteinerio */
 .tooltip-container[data-tooltip]:hover::after {
-    content: attr(data-tooltip); /* Ištraukia tekstą iš data-tooltip atributo */
+    content: attr(data-tooltip);
     position: absolute;
-    //bottom: 50%; /* Padeda tooltip'ą virš kortos */
     left: 50%;
     transform: translateX(-50%);
-    white-space: nowrap; /* Kad tekstas netilptų į kelias eilutes */
+    white-space: nowrap;
     background-color: #56708c;
     color: #f0e1b4;
     padding: 6px 12px;
     border-radius: 8px;
     font-size: 13px;
-    font-weight: 500;
     z-index: 100;
-    pointer-events: none; /* Neleisti blokuoti jokio kito elemento */
-    margin-bottom: 9px; /* Tarpas tarp kortos ir tooltip'o */
+    margin-bottom: 9px;
     box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
-    /* Pridėta papildoma animacija */
     opacity: 0;
     visibility: hidden;
-    transition: opacity 0.2s ease-in-out, visibility 0.2s ease-in-out;
+    transition: opacity 0.2s ease, visibility 0.2s ease;
 }
 
-/* Tooltip'o rodymas užvedus pele */
 .tooltip-container[data-tooltip]:hover::after {
     opacity: 1;
     visibility: visible;
