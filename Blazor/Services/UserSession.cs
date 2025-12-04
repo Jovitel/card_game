@@ -5,7 +5,6 @@ public class UserSession
 {
     public User? CurrentUser { get; private set; }
     public List<GameHistoryEntry> GameHistory { get; private set; } = new();
-
     public void SetUser(User user) => CurrentUser = user;
 
     public int UserId => CurrentUser?.Id ?? 0;
