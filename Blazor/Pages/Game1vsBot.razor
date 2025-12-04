@@ -3,11 +3,14 @@
 @using card_game.GameLogic
 @using card_game.GameDesign
 @using CardGame.Shared.Models
+@using card_game.Services
 @inject NavigationManager NavigationManager
 @inject HttpClient Http
 @inject UserSession UserSession
+@inject CardSettingsService CardSettingsService 
+@implements IDisposable
 
-<div class="page-wrapper">
+<div class="page-wrapper" style="background-color: @CardSettingsService.SelectedTableColor;">
     @if (game != null && humanPlayer != null && bot != null)
     {
         <!-- BOT viršuje -->
@@ -116,6 +119,18 @@
     private bool statsSent = false;
     private bool playerWon = false;
 
+    // Turime prenumeruoti įvykį OnChange, kad persikrautų pasikeitus stalo spalvai
+    protected override void OnInitialized()
+    {
+        // Prenumeruojame paslaugos pokyčius, kad atnaujintume UI keičiantis stalo spalvai
+        CardSettingsService.OnChange += StateHasChanged;
+    }
+
+    // PRIVALOMA: Įgyvendinamas Dispose metodas, kad atšauktume prenumeratą
+    public void Dispose()
+    {
+        CardSettingsService.OnChange -= StateHasChanged;
+    }
     private async Task StartGame()
     {
         humanPlayer = new Player("Žaidėjas");
