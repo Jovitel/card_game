@@ -1,7 +1,24 @@
 @namespace card_game.GameDesign
+@using card_game.Services
+@inject CardSettingsService CardSettingsService
+@implements IDisposable
+<div class="@CardBackCssClass"></div>
 
-<div class="card-back"></div>
+@code {
+    private string CardBackCssClass => $"card-back {CardSettingsService.SelectedCardColor}-back";
 
+    protected override void OnInitialized()
+    {
+        // Prenumeruojame paslaugos įvykį, kad komponentas persikrautų pasikeitus spalvai
+        CardSettingsService.OnChange += StateHasChanged;
+    }
+
+    // Atlaisviname resursus, kai komponentas sunaikinamas, kad išvengtume atminties nuotėkio
+    public void Dispose()
+    {
+        CardSettingsService.OnChange -= StateHasChanged;
+    }
+}
 <style>
 .card-back {
     width: 100px;
@@ -11,7 +28,11 @@
     box-shadow: 0 2px 6px rgba(0,0,0,0.25);
     background-color: white;
     
-    /* smulkesni rombai */
+    /* --- Konkrečios Spalvos Stiliai --- */
+}
+/* RAUDONA (Jūsų originalas) */
+.red-back {
+    /* smulkesni rombai su raudona */
     background-image: 
         linear-gradient(45deg, #c41e3a 25%, transparent 25%), 
         linear-gradient(-45deg, #c41e3a 25%, transparent 25%), 
@@ -19,9 +40,46 @@
         linear-gradient(-45deg, transparent 75%, #c41e3a 75%);
     background-size: 5px 5px; 
     background-position: 0 0, 0 5px, 5px -5px, -5px 0px;
+}
 
+/* MĖLYNA */
+.blue-back {
+    /* smulkesni rombai su mėlyna */
+    background-image: 
+        linear-gradient(45deg, #224a76ff 25%, transparent 25%), 
+        linear-gradient(-45deg, #214b77ff 25%, transparent 25%), 
+        linear-gradient(45deg, transparent 75%, #0475edff 75%), 
+        linear-gradient(-45deg, transparent 75%, #0068d7ff 75%);
+    background-size: 5px 5px; 
+    background-position: 0 0, 0 5px, 5px -5px, -5px 0px;
+}
+
+/* ŽALIA */
+.green-back {
+    /* smulkesni rombai su žalia */
+    background-image: 
+        linear-gradient(45deg, #2e5d2eff 25%, transparent 25%), 
+        linear-gradient(-45deg, #0c470cff 25%, transparent 25%), 
+        linear-gradient(45deg, transparent 75%, #1b441bff 75%), 
+        linear-gradient(-45deg, transparent 75%, #0d4a0dff 75%);
+    background-size: 5px 5px; 
+    background-position: 0 0, 0 5px, 5px -5px, -5px 0px;
+    /* kad korta būtų viršuje DeckView ar kitur */
+    position: relative;
+    z-index: 12;
+}
+.pink-back {
+  
+    background-image: 
+        linear-gradient(45deg, #fe00feff 25%, transparent 25%), 
+        linear-gradient(-45deg, #fb19ffff 25%, transparent 25%), 
+        linear-gradient(45deg, transparent 75%, #9f10cbff 75%), 
+        linear-gradient(-45deg, transparent 75%, #dd00ffff 75%);
+    background-size: 5px 5px; 
+    background-position: 0 0, 0 5px, 5px -5px, -5px 0px;
     /* kad korta būtų viršuje DeckView ar kitur */
     position: relative;
     z-index: 12;
 }
 </style>
+
