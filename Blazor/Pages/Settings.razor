@@ -1,17 +1,45 @@
-
 @page "/settings"
 @layout MainLayout
 @using card_game.Services
 @inject CardSettingsService CardSettingsService
-
+@inject UserSession Session
+@inject HttpClient Http 
+@inject NavigationManager NavigationManager 
 <div class="page-wrapper">
     <div class="container">
         <div class="top-line">
             <img src="images/durnius.png" alt="Žaidimo nuotrauka" class="top-image" />
             <NavLink class="btn" href="/start">Exit</NavLink>
         </div>
-
+        
         <div class="settings-section">
+            <h2>Avatar Design</h2>
+           <div class="color-options"> 
+                <button class="color-btn avatar-btn @(Session.SelectedAvatarUrl.EndsWith("avatar1.png") ? "selected" : "")" 
+                        @onclick="@(() => SelectAvatar("images/avatar1.png"))"> 
+                    <img src="images/avatar1.png" alt="Avatar 1" class="avatar-image"/>
+                </button>
+                
+                <button class="color-btn avatar-btn @(Session.SelectedAvatarUrl.EndsWith("avatar2.png") ? "selected" : "")" 
+                        @onclick="@(() => SelectAvatar("images/avatar2.png"))"> 
+                    <img src="images/avatar2.png" alt="Avatar 2" class="avatar-image"/>
+                </button>
+                
+                <button class="color-btn avatar-btn @(Session.SelectedAvatarUrl.EndsWith("default_avatar.png") ? "selected" : "")" 
+                        @onclick="@(() => SelectAvatar("images/default_avatar.png"))">
+                    <img src="images/default_avatar.png" alt="Avatar Default" class="avatar-image"/>
+                </button>
+                
+                <button class="color-btn avatar-btn @(Session.SelectedAvatarUrl.EndsWith("avatar3.png") ? "selected" : "")" 
+                        @onclick="@(() => SelectAvatar("images/avatar3.png"))"> 
+                    <img src="images/avatar3.png" alt="Avatar 3" class="avatar-image"/>
+                </button>
+
+                <button class="color-btn avatar-btn @(Session.SelectedAvatarUrl.EndsWith("avatar4.png") ? "selected" : "")" 
+                        @onclick="@(() => SelectAvatar("images/avatar4.png"))"> 
+                    <img src="images/avatar4.png" alt="Avatar 4" class="avatar-image"/>
+                </button>
+            </div>
             <h2>Card Design</h2>
             <div class="color-options">
                 <button class="color-btn red-btn @(CardSettingsService.SelectedCardColor == "red" ? "selected" : "")" 
@@ -45,7 +73,7 @@
 </div>
 
 @code {
-   private void SelectRed()
+    private void SelectRed()
     {
         CardSettingsService.SetCardColor("red");
     }
@@ -83,6 +111,40 @@
     private void SelectDarkPinkBg()
     {
         CardSettingsService.SetTableColor("#5c0b45ff"); 
+    }
+
+    private async Task SelectAvatar(string url)
+    {
+        if (Session.CurrentUser == null || Session.UserId <= 0)
+        {
+            // Jei vartotojas neprisijungęs, tiesiog nustatome vietiniam UI ir išeiname
+            Session.SetAvatar(url);
+            return;
+        }
+
+        // 1. Vietinis atnaujinimas
+        Session.SetAvatar(url); 
+        
+        // 2. Išsaugome DB: siunčiame atnaujintą vartotojo objektą ar tik URL
+        try
+        {
+            // Turi būti sukurtas API kontroleris (pvz., UsersController) su POST metodu
+            // kuris atnaujina tik avataro URL pagal ID.
+            
+            var payload = new { UserId = Session.UserId, AvatarUrl = url };
+            
+            // Jums reikės sukurti šį API endpointą backend'e
+            var response = await Http.PostAsJsonAsync("api/users/updateavatar", payload); 
+
+            if (!response.IsSuccessStatusCode)
+            {
+                Console.WriteLine("Klaida išsaugant avatarą DB: " + response.StatusCode);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine("Klaida siunčiant avataro atnaujinimą: " + ex.Message);
+        }
     }
 }
 
@@ -214,5 +276,19 @@
     background-color: #5c0b45ff; 
     color: white; 
 }
-</style>
+/* NAUJI AVATARO MYGTUKŲ STILIAI */
+.avatar-btn {
+    width: 60px; 
+    height: 60px;
+    padding: 0;
+    border-radius: 50%; 
+    overflow: hidden;
+}
 
+.avatar-image {
+    width: 100%;
+    height: 100%;
+    object-fit: cover;
+    border-radius: 50%;
+}
+</style>

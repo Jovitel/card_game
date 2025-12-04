@@ -1,15 +1,18 @@
 @page "/start"
 @layout MainLayout
 @using CardGame.Shared.Models
+@using card_game.Services
 @inject UserSession UserSession
+@inject UserSession Session
 @inject HttpClient Http
+@implements IDisposable
 
 <div class="page-wrapper">
     <div class="container">
         <div class="line">
             <div class="columns">
                 <div class="line">
-                    <input type="text" placeholder="photo" class="circle" readonly />
+                    <img src="@Session.SelectedAvatarUrl" alt="Player Avatar" class="profile-avatar" />
                     <div class="column_1">
                         <input type="text" class="input-field" readonly value="@GetPlayerName()" />
                         <input type="text" class="input-field" readonly value="Wins: @UserSession.CurrentUser?.Wins" />
@@ -95,6 +98,21 @@
     </div>
 </div>
 @code {
+    protected override void OnInitialized()
+    {
+        // Prenumeruojame Session paslaugos įvykį, kad puslapis atnaujintų vaizdą
+        Session.OnChange += StateHasChanged;
+        
+        // Jūsų esamas kodas:
+        // await LoadScoreboard(); 
+    }
+    
+    // BŪTINA: Atšaukiame prenumeratą, kai komponentas sunaikinamas, 
+    // kad išvengtume atminties nuotėkio
+    public void Dispose()
+    {
+        Session.OnChange -= StateHasChanged;
+    }
     private string GetPlayerName()
     {
         return UserSession.UserId > 0
@@ -362,4 +380,12 @@
     .btnn:hover svg {
         color: #56708c;
     }
+    .profile-avatar {
+    border: 2px solid #2c425a;
+    border-radius: 50%; /* Padaro apvalų */
+    height: 70px;
+    width: 70px;
+    object-fit: cover; /* Užtikrina, kad paveikslėlis tilps */
+    padding: 0; 
+}
 </style>
