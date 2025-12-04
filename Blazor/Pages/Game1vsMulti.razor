@@ -11,6 +11,7 @@
 @inject UserSession UserSession
 @inject NavigationManager NavigationManager
 @inject UserSession UserSession
+@inject UserSession Session
 @inject CardSettingsService CardSettingsService 
 @implements IDisposable
 <div class="page-wrapper" style="background-color: @CardSettingsService.SelectedTableColor;">
@@ -42,9 +43,13 @@
             {
                 var handSnapshot = opp.Hand?.ToList() ?? new List<Card>();
 
+                var avatarSource = opponentAvatars.ContainsKey(opp.Name) 
+                ? opponentAvatars[opp.Name] 
+                : "images/default_avatar.png";
+
                 <div class="opponent-block">
                     <div class="opponent-info-bar">
-                        <div class="opponent-avatar"></div>
+                        <img src="@avatarSource" alt="Oponento Avataras" class="opponent-avatar" />
                         <span class="opponent-label">@opp.Name</span>
                     </div>
 
@@ -148,7 +153,7 @@
 
 
         <div class="player-info-bar">
-            <div class="profile-placeholder"></div>
+            <img src="@Session.SelectedAvatarUrl" alt="Mano Avataras" class="player-avatar-small" />
             <span class="opponent-label" style="margin-left:10px;">@me?.Name</span>
         </div>
     }
@@ -160,6 +165,7 @@
     private DurakGameEngine? game;
     private Player? me;
     private List<Player> opponents = new();
+    private Dictionary<string, string> opponentAvatars = new();
 
     private string? roomCode;
     private bool connected = false;
@@ -167,6 +173,33 @@
     private bool myTurn = false;
     private string turnText = "";
     private bool isHost => string.IsNullOrEmpty(JoinCode);
+    private async Task LoadOpponentAvatars(List<Player> allPlayers)
+{
+    opponentAvatars.Clear();
+    var tasks = allPlayers
+        .Where(p => p != me) // Tik oponentai
+        .Select(async opp =>
+        {
+            try
+                {
+                    // Gaunami vartotojo duomenys per API kvietimą
+                    var user = await Http.GetFromJsonAsync<User>($"api/users/byname/{opp.Name}");
+                    var avatarUrl = user?.AvatarUrl ?? "images/default_avatar.png";
+
+                    // Pridedame į žemėlapį
+                    opponentAvatars[opp.Name] = avatarUrl;
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Klaida gaunant {opp.Name} avatarą: {ex.Message}");
+                    opponentAvatars[opp.Name] = "images/default_avatar.png"; // Numatytasis, jei klaida
+                }
+        })
+        .ToList();
+
+    await Task.WhenAll(tasks);
+    await InvokeAsync(StateHasChanged);
+}
     // Turime prenumeruoti įvykį OnChange, kad persikrautų pasikeitus stalo spalvai
     protected override void OnInitialized()
     {
@@ -239,7 +272,7 @@
         opponents = playerObjects.Where(p => p != me).ToList();
 
         game = new DurakGameEngine(playerObjects);
-
+        _ = LoadOpponentAvatars(playerObjects);
         SendInitState();
         await SetupTurnsAsync();
 
@@ -315,7 +348,7 @@ private void ApplyInit(GameAction a)
                 game.State.Deck.OverrideTrumpCard(trumpCard);
             }
         }
-
+        _ = LoadOpponentAvatars(allPlayers);
         engineReady = true;
         UpdateTurnText();
         InvokeAsync(StateHasChanged);
@@ -939,11 +972,11 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand ?? new List<Card>()))
     }
 
     .opponent-avatar {
-        width: 20px;
-        height: 20px;
-        background-color: #ddd;
+         width: 40px;
+        height: 40px;
         border-radius: 50%;
-        border: 1px solid #bbb;
+        border: 2px solid #bbb; 
+        object-fit: cover;
     }
 
     .opponent-label {
@@ -1151,4 +1184,11 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand ?? new List<Card>()))
         border-radius: 50%;
         border: 2px solid #bbb;
     }
+    .player-avatar-small {
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        border: 2px solid #bbb; 
+        object-fit: cover;
+} 
 </style>

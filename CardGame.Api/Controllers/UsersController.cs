@@ -41,5 +41,46 @@ namespace CardGame.Api.Controllers
             if (user == null) return Unauthorized();
             return Ok(user);
         }
+        [HttpGet("byname/{username}")]
+        public async Task<ActionResult<User>> GetUserByUsername(string username)
+        {
+            var user = await _context.Users
+                                     .FirstOrDefaultAsync(u => u.UserName == username);
+
+            if (user == null)
+            {
+                // Grąžiname 404, jei vartotojas nerastas
+                return NotFound("Vartotojas nerastas.");
+            }
+
+            // Grąžiname visą User objektą
+            return user; 
+        }
+        [HttpPost("updateavatar")]
+        public async Task<IActionResult> UpdateAvatar([FromBody] AvatarUpdateModel model)
+        {
+            if (model == null || model.UserId <= 0)
+            {
+                return BadRequest("Neteisingi duomenys.");
+            }
+
+            var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == model.UserId);
+            
+            if (user == null)
+            {
+                return NotFound("Vartotojas nerastas.");
+            }
+
+            // Atnaujiname avataro URL ir įrašome į DB
+            user.AvatarUrl = model.AvatarUrl;
+            await _context.SaveChangesAsync();
+            
+            return Ok();
+        }
+        public class AvatarUpdateModel
+        {
+            public int UserId { get; set; }
+            public string AvatarUrl { get; set; } = string.Empty;
+        }
     }
 }
