@@ -10,8 +10,11 @@
 @inject HttpClient Http
 @inject UserSession UserSession
 @inject NavigationManager NavigationManager
+@inject UserSession UserSession
+@inject CardSettingsService CardSettingsService 
+@implements IDisposable
 
-<div class="page-wrapper">
+<div class="page-wrapper" style="background-color: @CardSettingsService.SelectedTableColor;">
     @if (!connected)
     {
         <p>Jungiamasi prie serverio...</p>
@@ -138,6 +141,19 @@
     private bool statsSent = false;
     private bool isHost => string.IsNullOrEmpty(JoinCode);
 
+    // Turime prenumeruoti įvykį OnChange, kad persikrautų pasikeitus stalo spalvai
+    protected override void OnInitialized()
+    {
+        // Prenumeruojame paslaugos pokyčius, kad atnaujintume UI keičiantis stalo spalvai
+        CardSettingsService.OnChange += StateHasChanged;
+    }
+
+    // PRIVALOMA: Įgyvendinamas Dispose metodas, kad atšauktume prenumeratą
+    public void Dispose()
+    {
+        CardSettingsService.OnChange -= StateHasChanged;
+    }
+    
     protected override async Task OnInitializedAsync()
     {
         if (UserSession?.Username == null)
