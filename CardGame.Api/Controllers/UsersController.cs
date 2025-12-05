@@ -82,5 +82,45 @@ namespace CardGame.Api.Controllers
             public int UserId { get; set; }
             public string AvatarUrl { get; set; } = string.Empty;
         }
+        [HttpPut("updateusername")]
+        public async Task<IActionResult> UpdateUserName([FromBody] UsernameUpdateModel model)
+        {
+            if (model == null || model.UserId <= 0 || string.IsNullOrWhiteSpace(model.NewUserName))
+            {
+                return BadRequest("Neteisingi duomenys: trūksta ID arba naujo vardo.");
+            }
+
+            var newUsername = model.NewUserName.Trim();
+
+            // 1. Patikrinimas: Ar vardas jau užimtas?
+            var existingUser = await _context.Users
+                .FirstOrDefaultAsync(u => u.UserName == newUsername && u.Id != model.UserId);
+
+            if (existingUser != null)
+            {
+                // Grąžiname 409 Conflict, kad Klientas (Blazor) žinotų, jog vardas užimtas.
+                return Conflict("Šis vartotojo vardas jau yra užimtas.");
+            }
+
+            // 2. Atnaujinimas: Surandame vartotoją, kurį reikia atnaujinti
+            var userToUpdate = await _context.Users.FirstOrDefaultAsync(u => u.Id == model.UserId);
+
+            if (userToUpdate == null)
+            {
+                return NotFound("Vartotojas nerastas.");
+            }
+
+            // 3. Atnaujiname vardą ir išsaugome DB
+            userToUpdate.UserName = newUsername;
+            await _context.SaveChangesAsync();
+            
+            // Grąžiname sėkmės pranešimą (200 OK)
+            return Ok(userToUpdate); 
+        }
+    }
+    public class UsernameUpdateModel
+    {
+        public int UserId { get; set; }
+        public string NewUserName { get; set; } = string.Empty;
     }
 }
