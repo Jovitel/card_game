@@ -62,6 +62,10 @@
             </button>
         </div>
 
+        <div class="chat-container-wrapper">
+            <ChatWindow />
+        </div>
+        
         <!-- Kortos ant stalo -->
         <div class="table-cards">
             @if (game?.State?.TableCards != null && game.State.TableCards.Count > 0)
@@ -1199,4 +1203,7 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand))
         border: 2px solid #bbb; 
         object-fit: cover;
     }
+    /* ... esamas stilius ... */
+
+
 </style>
