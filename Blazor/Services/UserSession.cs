@@ -38,6 +38,6 @@ public class UserSession
         }
     }
     
-    private void NotifyChange() => OnChange?.Invoke();
+    public void NotifyChange() => OnChange?.Invoke();
     
 }
