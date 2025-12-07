@@ -218,6 +218,10 @@
     
     protected override async Task OnInitializedAsync()
     {
+
+        // Išvalome senus handlerius, kad nebūtų dvigubų registracijų
+        GameClient.OnReadyToStart -= HandleReadyToStart;
+        GameClient.OnGameActionReceived -= ApplyAction;
         // Multi režime StartGame iš hub'o ignoruojam – host pats spaudžia mygtuką
 
         if (UserSession?.Username == null)
@@ -307,50 +311,52 @@
 
 
 
-private void ApplyInit(GameAction a)
-{
-    if (isHost || engineReady) return;
-
-    try
+    private void ApplyInit(GameAction a)
     {
-        // Nusiskaitom žaidėjų rankas iš serverio
-        var playerHands = JsonSerializer.Deserialize<Dictionary<string, string>>(a.Data["players"])!;
-        var allPlayers = playerHands.Keys.Select(name => new Player(name)).ToList();
+        if (isHost || engineReady) return;
 
-        // Pasirenkam savo vardą (prisijungęs arba sugeneruotas)
-        var myName = UserSession!.Username;
-        me = allPlayers.FirstOrDefault(p => p.Name == myName);
-        if (me == null)
+        try
         {
-            me = new Player(myName);
-            allPlayers.Add(me);
-        }
+            // Nusiskaitom žaidėjų rankas iš serverio
+            var playerHands = JsonSerializer.Deserialize<Dictionary<string, string>>(a.Data["players"])!;
+            var allPlayers = playerHands.Keys.Select(name => new Player(name)).ToList();
 
-        //  Visi kiti tampa oponentais
-        opponents = allPlayers.Where(p => p != me).ToList();
-
-        //  Sukuriam variklį su pilnu sąrašu
-        game = new DurakGameEngine(allPlayers);
-
-        // Užpildom rankas
-        foreach (var kv in playerHands)
-        {
-            var pl = allPlayers.FirstOrDefault(p => p.Name == kv.Key);
-            if (pl != null)
-                pl.Hand = JsonSerializer.Deserialize<List<Card>>(kv.Value)!;
-        }
-
-        // Nustatom kozerį
-        if (a.Data.TryGetValue("trumpCard", out var trumpJson))
-        {
-            var trumpCard = JsonSerializer.Deserialize<Card>(trumpJson);
-            if (trumpCard != null)
+            // Pasirenkam savo vardą (prisijungęs arba sugeneruotas)
+            var myName = UserSession!.Username;
+            me = allPlayers.FirstOrDefault(p => p.Name == myName);
+            if (me == null)
             {
-                game.State.TrumpSuit = trumpCard.Suit;
-                game.State.Deck = new Deck();
-                game.State.Deck.OverrideTrumpCard(trumpCard);
+                me = new Player(myName);
+                allPlayers.Add(me);
             }
-        }
+
+            // Visi kiti tampa oponentais
+            opponents = allPlayers.Where(p => p != me).ToList();
+
+            // Sukuriam variklį su pilnu sąrašu
+            game = new DurakGameEngine(allPlayers);
+
+            // Užpildom rankas
+            foreach (var kv in playerHands)
+            {
+                var pl = allPlayers.FirstOrDefault(p => p.Name == kv.Key);
+                if (pl != null)
+                    pl.Hand = JsonSerializer.Deserialize<List<Card>>(kv.Value)!;
+            }
+
+            // Nustatom kozerį
+            if (a.Data.TryGetValue("trumpCard", out var trumpJson))
+            {
+                var trumpCard = JsonSerializer.Deserialize<Card>(trumpJson);
+                if (trumpCard != null)
+                {
+                    game.State.TrumpSuit = trumpCard.Suit;
+                    game.State.Deck = new Deck();
+                    game.State.Deck.OverrideTrumpCard(trumpCard);
+                }
+            }
+
+     
         _ = LoadOpponentAvatars(allPlayers);
         engineReady = true;
         UpdateTurnText();
@@ -363,7 +369,6 @@ private void ApplyInit(GameAction a)
     {
         Console.WriteLine($"Klaida ApplyInit metu: {ex.Message}");
     }
-}
 
 
 
@@ -402,6 +407,14 @@ private void ApplyInit(GameAction a)
             var attackCard = game.State.TableCards.FirstOrDefault(p => p.Value == null).Key;
             if (attackCard != null && game.Defend(me, attackCard, card))
             {
+                UserSession.AddGameHistoryEntry(
+                turnNumber: game.State.TurnNumber,
+                player: me!.Name,
+                action: "DEFEND",
+                cardPlayed: card
+                );
+
+
                 myTurn = false;
                 UpdateTurnText();
 
@@ -426,6 +439,13 @@ private void ApplyInit(GameAction a)
         // Ataka
         if (game.Attack(me, card))
         {
+            UserSession.AddGameHistoryEntry(
+            turnNumber: game.State.TurnNumber,
+            player: me!.Name,
+            action: "ATTACK",
+            cardPlayed: card
+            );
+
             myTurn = false;
             UpdateTurnText();
 
@@ -486,20 +506,55 @@ p => p.Hand ?? new List<Card>())),
         // Žaidimo pabaigos patikrinimas – tik host'as siunčia
         if (isHost && game.State.IsGameOver)
         {
-            var winner = game.State.Players.FirstOrDefault(p => p.Hand.Count == 0);
+            var stillWithCards = game.State.Players.Where(p => p.Hand.Count > 0).ToList();
+
+            List<string> losers;
+            List<string> winners;
+
+            if (stillWithCards.Count == 1)
+            {
+                losers = new List<string> { stillWithCards.First().Name };
+                winners = game.State.Players
+                .Where(p => p.Hand.Count == 0)
+                .Select(p => p.Name)
+                .ToList();
+            }
+            else
+            {
+                losers = stillWithCards.Select(p => p.Name).ToList();
+                winners = game.State.Players
+                .Where(p => p.Hand.Count == 0)
+                .Select(p => p.Name)
+                .ToList();
+            }
+
             var over = new GameAction
             {
                 Action = "GAME_OVER",
                 Data =
 {
-["winner"] = winner?.Name ?? "Niekas",
+["winners"] = JsonSerializer.Serialize(winners),
+["losers"] = JsonSerializer.Serialize(losers),
 ["players"] = JsonSerializer.Serialize(
 game.State.Players.ToDictionary(p => p.Name, p => p.Hand ?? new List<Card>()))
 }
             };
 
+            Console.WriteLine("[HOST] Žaidimas baigtas. Siunčiam GAME_OVER visiems klientams.");
+
             await GameClient.SendGameActionAsync(over);
+
+            // Šitas būtinas – kad host’ui irgi parodytų „GameOver“ ekraną
+            await RefreshUI(winners, losers);
+
+            return; // išėjimas iš metodo, kad nereiktų dar kartą daryti StateHasChanged
         }
+
+        UserSession.AddGameHistoryEntry(
+        turnNumber: game.State.TurnNumber,
+        player: me!.Name,
+        action: "ENDTURN"
+        );
 
 
         myTurn = false;
@@ -545,6 +600,11 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand))
             var force = new GameAction { Action = "FORCE_PICKUP_MULTI" };
             await GameClient.SendGameActionAsync(force);
         }
+        UserSession.AddGameHistoryEntry(
+        turnNumber: game.State.TurnNumber,
+        player: me!.Name,
+        action: "PICKUP"
+        );
 
         myTurn = false;
         UpdateTurnText();
@@ -649,48 +709,118 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand))
 
             // --- Gynėjo paėmimas (force) ---
             case "FORCE_PICKUP_MULTI":
+                {
+                    if (!isHost || game == null) break;
+
+                    var defender = game.State.Defender;
+                    foreach (var pair in game.State.TableCards)
+                    {
+                        defender.Hand.Add(pair.Key);
+                        if (pair.Value != null)
+                            defender.Hand.Add(pair.Value);
+                    }
+
+                    game.State.TableCards.Clear();
+                    game.EndTurn(true);
+
+                    // praleidžiam visus, kurie jau baigė
+                    var activePlayers = game.State.Players
+                    .Where(p => p.Hand.Count > 0)
+                    .ToList();
+
+                    if (activePlayers.Count > 1)
+                    {
+                        // Jei gynėjas pasiėmė – jis praleidžiamas, o sekančiu atakuotoju tampa kitas aktyvus
+                        var currentDefender = game.State.Defender;
+                        var nextAttacker = activePlayers.FirstOrDefault(p => p != currentDefender);
+
+                        if (nextAttacker != null)
+                        {
+                            game.State.Attacker = nextAttacker;
+
+                            // Sekantis gynėjas – po atakuotojo sąraše
+                            var nextDefender = activePlayers.FirstOrDefault(p => p != nextAttacker);
+                            if (nextDefender != null)
+                                game.State.Defender = nextDefender;
+                        }
+                    }
+                    else
+                    {
+                        // jei liko tik vienas aktyvus – žaidimas baigtas
+                        game.State.IsGameOver = true;
+                    }
+
+
+                    var act = new GameAction
+                    {
+                        Action = "PICKUP_MULTI",
+                        Data =
 {
-    if (!isHost || game == null) break;
-
-    var defender = game.State.Defender;
-    foreach (var pair in game.State.TableCards)
-    {
-        defender.Hand.Add(pair.Key);
-        if (pair.Value != null)
-            defender.Hand.Add(pair.Value);
-    }
-
-    game.State.TableCards.Clear();
-    game.EndTurn(true);
-
-    var act = new GameAction
-    {
-        Action = "PICKUP_MULTI",
-        Data =
-        {
-            ["attacker"] = game.State.Attacker.Name,
-            ["defender"] = game.State.Defender.Name,
-            ["players"] = JsonSerializer.Serialize(
-                game.State.Players.ToDictionary(p => p.Name, p => p.Hand))
-        }
-    };
-
-    await GameClient.SendGameActionAsync(act);
-
-    // 🔹 naujas papildomas pranešimas apie naują eilę
-    var turn = new GameAction
-    {
-        Action = "SETTURN_MULTI",
-        Data =
-        {
-            ["attacker"] = game.State.Attacker.Name,
-            ["defender"] = game.State.Defender.Name
-        }
-    };
-    await GameClient.SendGameActionAsync(turn);
-
-    break;
+["attacker"] = game.State.Attacker.Name,
+["defender"] = game.State.Defender.Name,
+["players"] = JsonSerializer.Serialize(
+game.State.Players.ToDictionary(p => p.Name, p => p.Hand))
 }
+                    };
+
+                    await GameClient.SendGameActionAsync(act);
+
+                    // naujas papildomas pranešimas apie naują eilę
+                    var turn = new GameAction
+                    {
+                        Action = "SETTURN_MULTI",
+                        Data =
+{
+["attacker"] = game.State.Attacker.Name,
+["defender"] = game.State.Defender.Name
+}
+                    };
+                    await GameClient.SendGameActionAsync(turn);
+                    if (game.State.IsGameOver)
+                    {
+                        // Tikrinam kas liko su kortomis
+                        var stillWithCards = game.State.Players.Where(p => p.Hand.Count > 0).ToList();
+
+                        // Jei liko tik vienas žaidėjas su kortomis, tai jis – pralaimėtojas
+                        List<string> losers;
+                        List<string> winners;
+
+                        if (stillWithCards.Count == 1)
+                        {
+                            losers = new List<string> { stillWithCards.First().Name };
+                            winners = game.State.Players
+                            .Where(p => p.Hand.Count == 0)
+                            .Select(p => p.Name)
+                            .ToList();
+                        }
+                        else
+                        {
+                            // jei kažkas neįprasto – visi kiti su kortom laikomi pralaimėję (apsauginis atvejis)
+                            losers = stillWithCards.Select(p => p.Name).ToList();
+                            winners = game.State.Players
+                            .Where(p => p.Hand.Count == 0)
+                            .Select(p => p.Name)
+                            .ToList();
+                        }
+
+                        var over = new GameAction
+                        {
+                            Action = "GAME_OVER",
+                            Data =
+{
+["winners"] = JsonSerializer.Serialize(winners),
+["losers"] = JsonSerializer.Serialize(losers),
+["players"] = JsonSerializer.Serialize(
+game.State.Players.ToDictionary(p => p.Name, p => p.Hand ?? new List<Card>()))
+}
+                        };
+
+                        await GameClient.SendGameActionAsync(over);
+                        await RefreshUI(winners, losers);
+                    }
+
+                    break;
+                }
 
 
             // --- Baigti ėjimą (force) ---
@@ -725,8 +855,22 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand)),
             // --- Žaidimo pabaiga ---
             case "GAME_OVER":
                 {
-                    game!.State.IsGameOver = true;
+                    Console.WriteLine("[GAME_OVER] Gauta žaidimo pabaiga iš serverio");
 
+                    if (game == null)
+                        game = new DurakGameEngine(new List<Player>()); // saugiklis, jei null
+
+                    game.State.IsGameOver = true;
+
+                    List<string>? winners = null;
+                    if (action.Data.TryGetValue("winners", out var winnersJson))
+                        winners = JsonSerializer.Deserialize<List<string>>(winnersJson);
+
+                    List<string>? losers = null;
+                    if (action.Data.TryGetValue("losers", out var losersJson))
+                        losers = JsonSerializer.Deserialize<List<string>>(losersJson);
+
+                    // Jei nebuvo išsiųsta "players" dalis, vistiek nustatom game over būseną
                     if (action.Data.TryGetValue("players", out var playersJson))
                     {
                         var playersData = JsonSerializer.Deserialize<Dictionary<string, List<Card>>>(playersJson)!;
@@ -738,33 +882,17 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand)),
                         }
                     }
 
-                    myTurn = false;
-                    turnText = "Žaidimas baigtas!";
-                    await InvokeAsync(StateHasChanged);
+                    // Jei šis klientas dar nematė pabaigos, parodyk ją dabar
+                    if (!statsSent)
+                    {
+                        myTurn = false;
+                        turnText = "Žaidimas baigtas!";
+                        await RefreshUI(winners, losers);
+                    }
                     break;
                 }
 
         }
-
-        // jei žaidimas baigtas, bet dar nebuvo išsiųstas GAME_OVER, hostas išsiunčia visiems
-        if (isHost && game?.State?.IsGameOver == true && action.Action != "GAME_OVER")
-        {
-            var winner = game.State.Players.FirstOrDefault(p => p.Hand != null && p.Hand.Count == 0);
-
-            var over = new GameAction
-            {
-                Action = "GAME_OVER",
-                Data =
-{
-["winner"] = winner?.Name ?? "Niekas",
-["players"] = JsonSerializer.Serialize(
-game.State.Players.ToDictionary(p => p.Name, p => p.Hand ?? new List<Card>()))
-}
-            };
-
-            await GameClient.SendGameActionAsync(over);
-        }
-
 
 
         UpdateTurnText();
@@ -844,13 +972,65 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand ?? new List<Card>()))
             return;
         }
     }
+    private bool statsSent = false;
+
+    private async Task RefreshUI(List<string>? winners = null, List<string>? losers = null)
+    {
+        if (game?.State?.IsGameOver == true && !statsSent)
+        {
+            statsSent = true;
+
+            bool playerWon = winners?.Contains(me!.Name) == true;
+            var result = playerWon ? "winner" : "loser";
+
+            Console.WriteLine($"Game over. PlayerWon: {playerWon}");
+
+            if (UserSession.UserId > 0)
+            {
+                HttpResponseMessage response;
+                if (playerWon)
+                {
+                    response = await Http.PostAsync($"api/stats/win/{UserSession.UserId}", null);
+                    Console.WriteLine($"POST win status: {response.StatusCode}");
+                }
+                else
+                {
+                    response = await Http.PostAsync($"api/stats/loss/{UserSession.UserId}", null);
+                    Console.WriteLine($"POST loss status: {response.StatusCode}");
+                }
+
+                var updatedUser = await Http.GetFromJsonAsync<User>($"api/users/{UserSession.UserId}");
+                if (updatedUser != null)
+                {
+                    UserSession.SetUser(updatedUser);
+                    Console.WriteLine($"Updated Wins: {updatedUser.Wins}, Losses: {updatedUser.Losses}");
+                }
+            }
+
+            NavigationManager.NavigateTo($"/gameover/{result}");
+            await InvokeAsync(StateHasChanged);
+            return;
+        }
+
+        await InvokeAsync(StateHasChanged);
+    }
 
     private Random rnd = new();
     private string GenerateRoomCode(int length = 6)
     {
         const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-        return new string(Enumerable.Repeat(chars, length)
+        string core = new string(Enumerable.Repeat(chars, length)
         .Select(s => s[rnd.Next(s.Length)]).ToArray());
+        return "M" + core; // prefiksas M – multi žaidimams
+    }
+
+
+    public void Dispose()
+    {
+        // Atjungiame visus event handlerius, kuriuos registravome
+        GameClient.OnReadyToStart -= HandleReadyToStart;
+        GameClient.OnGameActionReceived -= ApplyAction;
+
     }
 }
 

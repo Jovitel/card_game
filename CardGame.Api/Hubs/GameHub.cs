@@ -42,47 +42,59 @@ namespace CardGame.Api.Hubs
         // PRISIJUNGIMAS PRIE KAMBARIO
         public async Task JoinRoom(string roomCode, string playerName)
         {
+            // Normalizuojam kodą (kad būtų didžiosios raidės)
+            roomCode = roomCode.Trim().ToUpper();
+
+            //  Nustatome žaidimo tipą pagal prefiksą
+            string detectedMode = roomCode.StartsWith("M") ? "1vsmulti"
+                                : roomCode.StartsWith("A") ? "1v1"
+                                : "1v1"; // default – jei nepažįstamas prefiksas
+
+            // jei toks kambarys neegzistuoja – klaida
             if (!_rooms.TryGetValue(roomCode, out var players))
             {
-                await Clients.Caller.SendAsync("Error", "Toks kambarys nerastas.");
+                await Clients.Caller.SendAsync("Error", $"Kambarys '{roomCode}' nerastas.");
+                Console.WriteLine($"[WARN] Bandymas prisijungti prie neegzistuojančio kambario {roomCode}");
                 return;
             }
 
-            // Neleidžiame naudoti to paties vardo
+            //  Jei vardas jau naudojamas šiame kambaryje – klaida
             if (players.Contains(playerName))
             {
                 await Clients.Caller.SendAsync("Error", "Toks vardas jau naudojamas šiame kambaryje.");
                 return;
             }
 
-            // Pridedame žaidėją į sąrašą
+            //  Pridedame žaidėją į sąrašą
             players.Add(playerName);
             _connections[Context.ConnectionId] = playerName;
 
-            // Įtraukiame į grupę
+            //  Įtraukiame į SignalR grupę
             await Groups.AddToGroupAsync(Context.ConnectionId, roomCode);
 
-            // Pranešame visiems grupėje apie naują žaidėją
-            await Clients.Group(roomCode).SendAsync("PlayerJoined", playerName);
-            Console.WriteLine($"Žaidėjas '{playerName}' prisijungė prie kambario {roomCode} (viso: {players.Count})");
-
-            // Patikriname režimą
-            if (!_roomModes.TryGetValue(roomCode, out var mode))
+            //  Jei roomMode dar neregistruotas – įrašom pagal prefiksą
+            if (!_roomModes.ContainsKey(roomCode))
             {
-                mode = "1v1"; // jei kažkodėl nebuvo įrašyta
+                _roomModes[roomCode] = detectedMode;
+                Console.WriteLine($"[INFO] Nustatytas režimas kambariui {roomCode}: {detectedMode}");
             }
 
-            // 1v1 – automatinis startas po 2 žaidėjų
+            // Informuojame kitus
+            await Clients.Group(roomCode).SendAsync("PlayerJoined", playerName);
+            Console.WriteLine($"Žaidėjas '{playerName}' prisijungė prie kambario {roomCode} ({_roomModes[roomCode]}) (viso: {players.Count})");
+
+            //  Patikriname ar galima pradėti žaidimą
+            var mode = _roomModes[roomCode];
+
             if (mode == "1v1" && players.Count == 2)
             {
                 await Clients.Group(roomCode).SendAsync("StartGame");
                 Console.WriteLine($"Automatinis startas kambaryje {roomCode} (1v1).");
             }
-            // 1vsmulti – laukia 3 ar daugiau žaidėjų, tada host'ui siunčiamas signalas, kad galima pradėti
             else if (mode == "1vsmulti" && players.Count >= 3)
             {
                 await Clients.Group(roomCode).SendAsync("ReadyToStart", players);
-                Console.WriteLine($"Kambaryje {roomCode} galima pradėti žaidimą ({players.Count} žaidėjai).");
+                Console.WriteLine($"Kambaryje {roomCode} galima pradėti žaidimą ({players.Count} žaidėjai, tipas: 1vsmulti).");
             }
             if (_chatHistory.TryGetValue(roomCode, out var history) && history.Count > 0)
             {
@@ -94,6 +106,7 @@ namespace CardGame.Api.Hubs
                 Console.WriteLine($"[CHAT] Išsiųsta {history.Count} žinučių istorija žaidėjui {playerName} į kambarį {roomCode}.");
             }
         }
+
 
 
         // ŽAIDIMO VEIKSMAI
@@ -158,6 +171,7 @@ namespace CardGame.Api.Hubs
         // Kai žaidėjas paprašo užbaigti ėjimą (REQUEST_ENDTURN_MULTI)
         public async Task RequestEndTurn(string roomCode, string playerName)
         {
+       
             if (_rooms.TryGetValue(roomCode, out var players))
             {
                 Console.WriteLine($"{playerName} paprašė užbaigti ėjimą kambaryje {roomCode}.");

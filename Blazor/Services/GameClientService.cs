@@ -168,8 +168,8 @@ namespace card_game.Services
             ConnectedPlayers.Clear();
             ConnectedPlayers.Add(MyName);
 
-            await _hubConnection!.SendAsync("CreateRoom", roomCode, MyName, gameMode);
-            Console.WriteLine($"Sukurtas kambarys {roomCode} (host: {MyName}, režimas: {gameMode})");
+            await _hubConnection!.SendAsync("CreateRoom", _roomCode, MyName, gameMode);
+            Console.WriteLine($"Sukurtas kambarys {_roomCode} (host: {MyName}, režimas: {gameMode})");
         }
 
 
@@ -198,15 +198,42 @@ namespace card_game.Services
         }
 
         // Atsijungia nuo serverio (naudinga kai išeinama iš žaidimo)
-        public async Task DisconnectAsync()
-        {
-            if (_hubConnection is not null)
-            {
-                await _hubConnection.StopAsync();
-                Console.WriteLine("Atsijungta nuo SignalR serverio.");
-                
-            }
-        }
+       public async Task DisconnectAsync()
+{
+    if (_hubConnection is not null)
+    {
+       try
+{
+    if (_hubConnection is not null)
+    {
+        await _hubConnection.StopAsync();
+        await _hubConnection.DisposeAsync();
+        Console.WriteLine("Atsijungta ir SignalR jungtis išvalyta.");
+    }
+}
+catch (Exception ex)
+{
+    Console.WriteLine($"Klaida atsijungiant nuo SignalR: {ex.Message}");
+}
+finally
+{
+    _hubConnection = null;
+    _roomCode = null;
+    ConnectedPlayers.Clear();
+
+    // išvalom visus eventus (kad tarp žaidimų neliktų)
+    OnStartGame = null;
+    OnRoomCreated = null;
+    OnPlayerJoined = null;
+    OnPlayerLeft = null;
+    OnErrorReceived = null;
+    OnGameActionReceived = null;
+    OnReadyToStart = null;
+}
+
+    }
+}
+
         // Siunčia prašymą serveriui, kad gynėjas paėmė kortas (multiplayer režimas)
         public async Task RequestPickUpAsync()
         {

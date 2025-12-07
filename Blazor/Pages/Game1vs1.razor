@@ -163,6 +163,11 @@
     
     protected override async Task OnInitializedAsync()
     {
+        // Svarbu: išvalyti senus event'us prieš registruojant naujus
+    GameClient.OnStartGame -= HostStartGame;
+    GameClient.OnGameActionReceived -= ApplyAction;
+
+   
         if (UserSession?.CurrentUser == null || UserSession.Username == "Svečias")
         {
             NavigationManager.NavigateTo("/login");
@@ -343,6 +348,15 @@
             var attackCard = game.State.TableCards.FirstOrDefault(p => p.Value == null).Key;
             if (attackCard != null && game.Defend(me!, attackCard, card))
             {
+
+                UserSession.AddGameHistoryEntry(
+            turnNumber: game.State.TurnNumber,
+            player: me.Name,
+            action: "DEFEND",
+            cardPlayed: card,
+            attackCard: attackCard
+        );
+
                 myTurn = false;
                 UpdateTurnText();
 
@@ -367,6 +381,14 @@
         // ATTACK
         if (game.Attack(me!, card))
         {
+
+            UserSession.AddGameHistoryEntry(
+        turnNumber: game.State.TurnNumber,
+        player: me.Name,
+        action: "ATTACK",
+        cardPlayed: card
+    );
+
             myTurn = false;
             UpdateTurnText();
 
@@ -387,51 +409,22 @@
     private async Task PickUpCards()
     {
         if (game == null || me == null) return;
-        if (!myTurn) return;
-        if (game.State.Defender != me) return;
+    if (!myTurn) return;
+    if (game.State.Defender != me) return;
 
-        // Paimam visas kortas nuo stalo
-        foreach (var pair in game.State.TableCards)
-        {
-            me.Hand.Add(pair.Key);
-            if (pair.Value != null)
-                me.Hand.Add(pair.Value);
-        }
+    //  Visada einam per host'ą – jis sutvarkys rankas, kaladę ir, jei reikia, GAME_OVER
+    var request = new GameAction { Action = "REQUEST_PICKUP" };
+    await GameClient.SendGameActionAsync(request);
 
-        game.State.TableCards.Clear();
-
-        if (isHost)
-        {
-            game.EndTurn(true);
-
-            var act = new GameAction
-            {
-                Action = "PICKUP",
-                Data =
-{
-["p1cards"] = JsonSerializer.Serialize(game.State.Players[0].Hand),
-["p2cards"] = JsonSerializer.Serialize(game.State.Players[1].Hand),
-["nextAttacker"] = game.State.Attacker.Name,
-["nextDefender"] = game.State.Defender.Name,
-["trump"] = game.State.TrumpSuit.ToString()
-}
-            };
-
-            await GameClient.SendGameActionAsync(act);
-
-            // Iškart atnaujiname vietinį UI
-            ApplyAction(act);
-        }
-        else
-        {
-            // Guest prašo hosto patvirtinti pickup
-            var request = new GameAction { Action = "REQUEST_PICKUP" };
-            await GameClient.SendGameActionAsync(request);
-        }
-
-        myTurn = false;
-        UpdateTurnText();
-        await InvokeAsync(StateHasChanged);
+UserSession.AddGameHistoryEntry(
+    turnNumber: game.State.TurnNumber,
+    player: me!.Name,
+    action: "PICKUP"
+);
+    myTurn = false;
+    UpdateTurnText();
+    await InvokeAsync(StateHasChanged);
+    
     }
 
     private async Task EndTurn()
@@ -476,6 +469,7 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand ?? new List<Card>()))
                 };
 
                 await GameClient.SendGameActionAsync(over);
+                await RefreshUI();
             }
 
         }
@@ -485,7 +479,11 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand ?? new List<Card>()))
             var request = new GameAction { Action = "REQUEST_ENDTURN" };
             await GameClient.SendGameActionAsync(request);
         }
-
+UserSession.AddGameHistoryEntry(
+    turnNumber: game.State.TurnNumber,
+    player: game.State.Attacker.Name,
+    action: "ENDTURN"
+);
         myTurn = false;
         UpdateTurnText();
         await InvokeAsync(StateHasChanged);
@@ -551,6 +549,7 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand ?? new List<Card>()))
                         };
 
                         await GameClient.SendGameActionAsync(over);
+                        await RefreshUI();
                     }
                 }
                 break;
@@ -675,6 +674,7 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand))
 }
                         };
                         await GameClient.SendGameActionAsync(over);
+                        await RefreshUI();
                     }
                 }
                 break;
@@ -804,11 +804,12 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand))
 
     private Random rnd = new();
     private string GenerateRoomCode(int length = 6)
-    {
-        const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-        return new string(Enumerable.Repeat(chars, length)
+{
+    const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+    string core = new string(Enumerable.Repeat(chars, length)
         .Select(s => s[rnd.Next(s.Length)]).ToArray());
-    }
+    return "A" + core; // prefiksas A – 1v1 žaidimams
+}
 
     private async Task RefreshUI()
     {
@@ -849,6 +850,12 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand))
 
         await InvokeAsync(StateHasChanged);
     }
+
+    public void Dispose()
+{
+    GameClient.OnStartGame -= HostStartGame;
+    GameClient.OnGameActionReceived -= ApplyAction;
+}
 }
 
 
