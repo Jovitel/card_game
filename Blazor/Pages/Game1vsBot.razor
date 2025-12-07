@@ -3,18 +3,22 @@
 @using card_game.GameLogic
 @using card_game.GameDesign
 @using CardGame.Shared.Models
+@using card_game.Services
 @inject NavigationManager NavigationManager
 @inject HttpClient Http
 @inject UserSession UserSession
+@inject UserSession Session
+@inject CardSettingsService CardSettingsService 
+@implements IDisposable
 
-<div class="page-wrapper">
+<div class="page-wrapper" style="background-color: @CardSettingsService.SelectedTableColor;">
     @if (game != null && humanPlayer != null && bot != null)
     {
         <!-- BOT viršuje -->
         <div class="multi-opponents">
             <div class="opponent-block">
                 <div class="opponent-info-bar">
-                    <div class="opponent-avatar"></div>
+                    <img src="images/bot.png" alt="Bot Avatar" class="opponent-avatar" />
                     <span class="opponent-label">@bot!.Name</span>
                 </div>
                 <div class="opponent-hand-small">
@@ -95,7 +99,7 @@
 
         <!-- Žaidėjo info -->
         <div class="player-info-bar">
-            <div class="profile-placeholder"></div>
+            <img src="@Session.SelectedAvatarUrl" alt="Mano Avataras" class="player-avatar-small" />
             <span class="opponent-label" style="margin-left:10px;">
 @(UserSession?.Username ?? humanPlayer?.Name ?? "Žaidėjas")
 </span>
@@ -116,6 +120,18 @@
     private bool statsSent = false;
     private bool playerWon = false;
 
+    // Turime prenumeruoti įvykį OnChange, kad persikrautų pasikeitus stalo spalvai
+    protected override void OnInitialized()
+    {
+        // Prenumeruojame paslaugos pokyčius, kad atnaujintume UI keičiantis stalo spalvai
+        CardSettingsService.OnChange += StateHasChanged;
+    }
+
+    // PRIVALOMA: Įgyvendinamas Dispose metodas, kad atšauktume prenumeratą
+    public void Dispose()
+    {
+        CardSettingsService.OnChange -= StateHasChanged;
+    }
     private async Task StartGame()
     {
         humanPlayer = new Player("Žaidėjas");
@@ -144,7 +160,7 @@
         {
             if (game.Attack(humanPlayer, card))
             {
-                UserSession.AddGameHistoryEntry(
+                 UserSession.AddGameHistoryEntry(
                     turnNumber: game.State.TurnNumber,
                     player: humanPlayer.Name,
                     action: "ATTACK",
@@ -225,7 +241,7 @@
 
         Console.WriteLine("[INFO] Žaidėjas baigia ėjimą.");
 
-        UserSession.AddGameHistoryEntry(
+       UserSession.AddGameHistoryEntry(
             turnNumber: game.State.TurnNumber,
             player: game.State.Attacker.Name,
             action: "ENDTURN"
@@ -321,14 +337,6 @@
     align-items: center;
     justify-content: center;
     gap: 6px;
-}
-
-.opponent-avatar {
-    width: 20px;
-    height: 20px;
-    background-color: #ddd;
-    border-radius: 50%;
-    border: 1px solid #bbb;
 }
 
 .opponent-label {
@@ -515,5 +523,19 @@
 .tooltip-container[data-tooltip]:hover::after {
     opacity: 1;
     visibility: visible;
+}
+.player-avatar-small {
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        border: 2px solid #bbb; 
+        object-fit: cover;
+} 
+.opponent-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        border: 2px solid #bbb; 
+        object-fit: cover;
 }
 </style>

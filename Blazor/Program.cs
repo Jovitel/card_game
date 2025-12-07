@@ -20,6 +20,7 @@ builder.Services.AddScoped(sp => new HttpClient
 
 // SignalR klientas
 builder.Services.AddSingleton<GameClientService>();
-
+builder.Services.AddSingleton<CardSettingsService>();
 
 await builder.Build().RunAsync();
+

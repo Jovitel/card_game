@@ -9,9 +9,13 @@
 @inject GameClientService GameClient
 @inject HttpClient Http
 @inject UserSession UserSession
+@inject UserSession Session
 @inject NavigationManager NavigationManager
+@inject UserSession UserSession
+@inject CardSettingsService CardSettingsService 
+@implements IDisposable
 
-<div class="page-wrapper">
+<div class="page-wrapper" style="background-color: @CardSettingsService.SelectedTableColor;">
     @if (!connected)
     {
         <p>Jungiamasi prie serverio...</p>
@@ -30,7 +34,7 @@
         <div class="multi-opponents">
             <div class="opponent-block">
                 <div class="opponent-info-bar">
-                    <div class="opponent-avatar"></div>
+                    <img src="@opponentAvatarUrl" alt="Oponento Avataras" class="opponent-avatar" />
                     <span class="opponent-label">@opponent!.Name</span>
                 </div>
 
@@ -58,6 +62,10 @@
             </button>
         </div>
 
+        <div class="chat-container-wrapper">
+            <ChatWindow />
+        </div>
+        
         <!-- Kortos ant stalo -->
         <div class="table-cards">
             @if (game?.State?.TableCards != null && game.State.TableCards.Count > 0)
@@ -116,7 +124,7 @@
 
         <!-- Žaidėjo info -->
         <div class="player-info-bar">
-            <div class="profile-placeholder"></div>
+            <img src="@Session.SelectedAvatarUrl" alt="Mano Avataras" class="player-avatar-small" />
             <span class="opponent-label" style="margin-left:10px;">@me?.Name</span>
         </div>
     }
@@ -129,7 +137,7 @@
     private DurakGameEngine? game;
     private Player? me;
     private Player? opponent;
-
+    private string? opponentAvatarUrl = "images/default_avatar.png";
     private string? roomCode;
     private bool connected = false;
     private bool engineReady = false;
@@ -138,13 +146,29 @@
     private bool statsSent = false;
     private bool isHost => string.IsNullOrEmpty(JoinCode);
 
+    // Turime prenumeruoti įvykį OnChange, kad persikrautų pasikeitus stalo spalvai
+    protected override void OnInitialized()
+    {
+        // Prenumeruojame paslaugos pokyčius, kad atnaujintume UI keičiantis stalo spalvai
+        CardSettingsService.OnChange += StateHasChanged;
+       
+    }
+
+    // PRIVALOMA: Įgyvendinamas Dispose metodas, kad atšauktume prenumeratą
+    public void Dispose()
+    {
+        CardSettingsService.OnChange -= StateHasChanged;
+    
+    }
+    
     protected override async Task OnInitializedAsync()
     {
         // Svarbu: išvalyti senus event'us prieš registruojant naujus
     GameClient.OnStartGame -= HostStartGame;
     GameClient.OnGameActionReceived -= ApplyAction;
 
-        if (UserSession?.Username == null)
+   
+        if (UserSession?.CurrentUser == null || UserSession.Username == "Svečias")
         {
             NavigationManager.NavigateTo("/login");
             return;
@@ -174,12 +198,15 @@
     {
         if (!isHost) return;
 
-        var myName = UserSession!.Username;
+        var myName = UserSession.CurrentUser!.UserName;
         var opponentName = GameClient.ConnectedPlayers.FirstOrDefault(p => p != myName) ?? "Kitas";
 
         me = new Player(myName);
         opponent = new Player(opponentName);
-
+        if (opponentName != null)
+        {
+           _ = FetchOpponentAvatar(opponentName);
+        }
         game = new DurakGameEngine(new List<Player> { me, opponent });
 
         SendInitState();
@@ -211,18 +238,19 @@
     }
 
 
-    private void ApplyInit(GameAction a)
+    private async void ApplyInit(GameAction a)
     {
         if (isHost || engineReady) return;
 
-        var myName = UserSession!.Username;
+        var myName = Session.CurrentUser!.UserName;
 
-        // naudojam vardus, kuriuos atsiuntė host
         var p1Name = a.Data.ContainsKey("p1name") ? a.Data["p1name"] : "Žaidėjas1";
         var p2Name = a.Data.ContainsKey("p2name") ? a.Data["p2name"] : "Žaidėjas2";
-
+       
+        
         // Nustatom, kas yra kas pagal prisijungusio vartotojo vardą
         string opponentName;
+        
         if (myName == p1Name)
             opponentName = p2Name;
         else if (myName == p2Name)
@@ -235,7 +263,7 @@
 
         me = new Player(myName);
         opponent = new Player(opponentName);
-
+        _ = FetchOpponentAvatar(opponentName);
 
 
         game = new DurakGameEngine(new List<Player> { opponent!, me! });
@@ -252,13 +280,28 @@
 
         engineReady = true;
         UpdateTurnText();
-        InvokeAsync(StateHasChanged);
+        await InvokeAsync(StateHasChanged);
         Console.WriteLine($"[DEBUG] Mano vardas: {me.Name}");
         Console.WriteLine($"[DEBUG] Oponentas: {opponent.Name}");
         Console.WriteLine($"[DEBUG] Mano kortos: {me.Hand.Count}");
         Console.WriteLine($"[DEBUG] Oponento kortos: {opponent.Hand.Count}");
     }
-
+    private async Task FetchOpponentAvatar(string opponentName)
+    {
+        try
+        {
+            var opponentUser = await Http.GetFromJsonAsync<User>($"api/users/byname/{opponentName}");
+            if (opponentUser != null)
+            {
+                opponentAvatarUrl = opponentUser.AvatarUrl;
+                await InvokeAsync(StateHasChanged);
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Klaida gaunant oponento avatarą: {ex.Message}");
+        }
+    }
     private async Task SetupTurnsAsync()
     {
         var rand = new Random();
@@ -878,14 +921,6 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand))
         box-shadow: 0 2px 5px rgba(0, 0, 0, 0.25);
     }
 
-    .opponent-avatar {
-        width: 20px;
-        height: 20px;
-        background-color: #ddd;
-        border-radius: 50%;
-        border: 1px solid #bbb;
-    }
-
     .opponent-label {
         color: #1c2d3e;
         font-size: 13px;
@@ -1161,4 +1196,21 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand))
         opacity: 1;
         visibility: visible;
     }
+    .player-avatar-small {
+        width: 50px;
+        height: 50px;
+        border-radius: 50%;
+        border: 2px solid #bbb; 
+        object-fit: cover;
+    }   
+    .opponent-avatar {
+        width: 40px;
+        height: 40px;
+        border-radius: 50%;
+        border: 2px solid #bbb; 
+        object-fit: cover;
+    }
+    /* ... esamas stilius ... */
+
+
 </style>

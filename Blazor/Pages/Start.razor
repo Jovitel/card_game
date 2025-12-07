@@ -1,17 +1,24 @@
 @page "/start"
 @layout MainLayout
 @using CardGame.Shared.Models
+@using card_game.Services
 @inject UserSession UserSession
+@inject UserSession Session
 @inject HttpClient Http
+@implements IDisposable
 
 <div class="page-wrapper">
     <div class="container">
         <div class="line">
             <div class="columns">
                 <div class="line">
-                    <input type="text" placeholder="photo" class="circle" readonly />
+                    <img src="@Session.SelectedAvatarUrl" alt="Player Avatar" class="profile-avatar" />
                     <div class="column_1">
-                        <input type="text" class="input-field" readonly value="@GetPlayerName()" />
+                        <input type="text" class="input-field" @bind="newUserName" /> 
+                        <button class="btn-save-name" @onclick="UpdateUserName" 
+                            disabled="@string.IsNullOrWhiteSpace(newUserName)">
+                            Save UserName
+                        </button>
                         <input type="text" class="input-field" readonly value="Wins: @UserSession.CurrentUser?.Wins" />
                         <input type="text" class="input-field" readonly
                             value="Losses: @UserSession.CurrentUser?.Losses" />
@@ -91,10 +98,31 @@
             <div class="right">
                 <img src="images/cards_light.png" alt="Kortu nuotrauka" class="card-image" />
             </div>
+            @if (!string.IsNullOrWhiteSpace(errorMessage))
+                        {
+                            <div class="error-message">@errorMessage</div>
+                        }
         </div>
     </div>
 </div>
 @code {
+    private string newUserName = "";
+    private string errorMessage = "";
+    protected override void OnInitialized()
+    {
+        // Prenumeruojame Session paslaugos įvykį, kad puslapis atnaujintų vaizdą
+        Session.OnChange += StateHasChanged;
+        
+        // PAKEITIMAS: Nustatome pradinę reikšmę naujam laukui
+        newUserName = GetPlayerName(); 
+    }
+    
+    // BŪTINA: Atšaukiame prenumeratą, kai komponentas sunaikinamas, 
+    // kad išvengtume atminties nuotėkio
+    public void Dispose()
+    {
+        Session.OnChange -= StateHasChanged;
+    }
     private string GetPlayerName()
     {
         return UserSession.UserId > 0
@@ -106,9 +134,9 @@
 
     protected override async Task OnInitializedAsync()
     {
+        newUserName = GetPlayerName();
         await LoadScoreboard();
     }
-
     private async Task LoadScoreboard()
     {
         if (UserSession.UserId <= 0)
@@ -134,6 +162,56 @@
         .ToList();
 
         StateHasChanged();
+    }
+        private async Task UpdateUserName()
+    {
+        errorMessage = ""; 
+
+    if (string.IsNullOrWhiteSpace(newUserName) || UserSession.CurrentUser == null)
+    {
+        errorMessage = "UserName cannot be empty.";
+        return;
+    }
+
+
+    try
+    {
+        var updateData = new 
+        {
+            UserId = UserSession.CurrentUser.Id,
+            NewUserName = newUserName.Trim() 
+        };
+
+        // Naudojame PUT metodą, kuris dabar yra palaikomas API kontroleryje
+        var response = await Http.PutAsJsonAsync("api/users/updateusername", updateData); 
+
+        if (response.IsSuccessStatusCode)
+        {
+            // Viskas gerai: atnaujiname sesiją
+            UserSession.CurrentUser.UserName = newUserName.Trim();                
+            Session.NotifyChange(); 
+            await LoadScoreboard();
+        }
+        else
+        {
+            // API atsako klaida
+            if (response.StatusCode == System.Net.HttpStatusCode.Conflict) // 409
+            {
+                errorMessage = "This UserName is already taken.";
+            }
+            else // Kitos klaidos (404, 400, 500 ir t.t.)
+            {
+                // Paimame klaidos tekstą iš API (jei API grąžina tekstą)
+                var errorContent = await response.Content.ReadAsStringAsync();
+                errorMessage = $"Nepavyko atnaujinti vardo. Statusas: {(int)response.StatusCode}. Žinutė: {errorContent}";
+            }
+        }
+        }
+        catch (Exception ex)
+        {
+            errorMessage = $"Įvyko nenumatyta klaida: {ex.Message}";
+            Console.WriteLine($"Klaida: {ex.Message}");
+        }
     }
 }
 
@@ -331,10 +409,6 @@
     .leader-row:last-child {
         border-bottom: none;
     }
-
-
-
-
     .svg-buttons {
         display: flex;
         flex-direction: row;
@@ -361,5 +435,51 @@
 
     .btnn:hover svg {
         color: #56708c;
+    }
+    .profile-avatar {
+    border: 2px solid #2c425a;
+    border-radius: 50%; /* Padaro apvalų */
+    height: 70px;
+    width: 70px;
+    object-fit: cover; /* Užtikrina, kad paveikslėlis tilps */
+    padding: 0; 
+}
+.btn-save-name {
+        background-color: #2c425a;
+        color: white;
+        padding: 5px 12px;
+        border: none;
+        border-radius: 20px;
+        font-size: 14px;
+        font-weight: bold;
+        cursor: pointer;
+        transition: 0.3s;
+        max-height: 36px; /* Siekiant, kad būtų kompaktiškesnis */
+    }
+
+    .btn-save-name:hover:not(:disabled) {
+        background-color: #56708c;
+        color: #f0e1b4;
+    }
+
+    .btn-save-name:disabled {
+        background-color: #aaa;
+        cursor: not-allowed;
+        opacity: 0.7;
+    }
+    .error-message {
+        color: #f0e1b4; /* Raudona spalva klaidoms */
+        background-color: #56708c; 
+        border: 1px solid #2c425a;
+        padding: 5px 10px;
+        border-radius: 5px;
+        font-size: 14px;
+        font-weight: 600;
+        text-align: center;
+    }
+    .error-message:contains("sėkmingai") {
+        color: #008000;
+        background-color: #ddf;
+        border-color: #008000;
     }
 </style>

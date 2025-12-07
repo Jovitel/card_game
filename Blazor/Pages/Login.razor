@@ -31,9 +31,17 @@
         if (response.IsSuccessStatusCode)
         {
             var user = await response.Content.ReadFromJsonAsync<User>();
-            UserSession.SetUser(user);
 
-            Nav.NavigateTo("/start");
+            if (user != null)
+            {
+                UserSession.SetUser(user!); // Naudojame '!' operatorių
+                Nav.NavigateTo("/start");
+            }
+            else
+            {
+                // Jei atsakymas sėkmingas, bet body tuščias arba neteisingas, vis tiek pranešame klaidą
+                loginError = "Login failed due to server response format error.";
+            }
         }
         else
         {

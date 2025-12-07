@@ -17,6 +17,7 @@ namespace CardGame.Api.Hubs
         // Prisijungimų žemėlapis: connectionId → playerName
         private static readonly ConcurrentDictionary<string, string> _connections = new();
 
+        private static readonly ConcurrentDictionary<string, List<ChatMessage>> _chatHistory = new();
         // KAMBARIO KŪRIMAS
         public async Task CreateRoom(string roomCode, string playerName, string gameMode)
         {
@@ -95,6 +96,15 @@ namespace CardGame.Api.Hubs
                 await Clients.Group(roomCode).SendAsync("ReadyToStart", players);
                 Console.WriteLine($"Kambaryje {roomCode} galima pradėti žaidimą ({players.Count} žaidėjai, tipas: 1vsmulti).");
             }
+            if (_chatHistory.TryGetValue(roomCode, out var history) && history.Count > 0)
+            {
+                // 1. Serializuojame visą žinučių sąrašą
+                var historyJson = System.Text.Json.JsonSerializer.Serialize(history);
+                
+                // 2. Siunčiame TIK prisijungusiam žaidėjui (Clients.Caller)
+                await Clients.Caller.SendAsync("ReceiveChatHistory", historyJson);
+                Console.WriteLine($"[CHAT] Išsiųsta {history.Count} žinučių istorija žaidėjui {playerName} į kambarį {roomCode}.");
+            }
         }
 
 
@@ -161,6 +171,7 @@ namespace CardGame.Api.Hubs
         // Kai žaidėjas paprašo užbaigti ėjimą (REQUEST_ENDTURN_MULTI)
         public async Task RequestEndTurn(string roomCode, string playerName)
         {
+       
             if (_rooms.TryGetValue(roomCode, out var players))
             {
                 Console.WriteLine($"{playerName} paprašė užbaigti ėjimą kambaryje {roomCode}.");
@@ -174,6 +185,35 @@ namespace CardGame.Api.Hubs
                 var json = System.Text.Json.JsonSerializer.Serialize(action);
                 await Clients.Group(roomCode).SendAsync("ReceiveGameAction", json);
             }
+        }
+        public async Task SendChatMessage(string roomCode, string messageJson)
+        {
+            // 1. Deserializuojame JSON (kad galėtume saugoti objektą)
+            var chatMessage = System.Text.Json.JsonSerializer.Deserialize<ChatMessage>(messageJson);
+            
+            if (chatMessage == null) return;
+
+            // 2. Išsaugome žinutę istorijoje
+            _chatHistory.AddOrUpdate(
+                roomCode, 
+                // Jei kambarys naujas (Add):
+                new List<ChatMessage> { chatMessage }, 
+                // Jei kambarys jau yra (Update):
+                (key, existingList) => 
+                {
+                    existingList.Add(chatMessage);
+                    // Pasirinktinai: Ribojame istoriją, pvz., iki 50 žinučių
+                    if (existingList.Count > 50)
+                    {
+                        existingList.RemoveAt(0);
+                    }
+                    return existingList;
+                });
+
+            // 3. Transliuojame realiuoju laiku (kaip buvo)
+            await Clients.OthersInGroup(roomCode).SendAsync("ReceiveChatMessage", messageJson);
+            
+            Console.WriteLine($"[CHAT] Room {roomCode}: saved and sent chat message.");
         }
 
     }
