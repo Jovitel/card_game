@@ -8,24 +8,26 @@
 
         <input @bind="roomCode" placeholder="Įvesk kambario kodą" class="join-input" />
 
-        <select @bind="selectedMode" class="mode-select">
-            <option value="1vs1">1 vs 1</option>
-            <option value="1vsmulti">1 vs Multi (iki 4 žaidėjų)</option>
-        </select>
-
         <button class="join-button" @onclick="JoinGame">Prisijungti</button>
     </div>
 </div>
 
 @code {
     private string? roomCode;
-    private string selectedMode = "1vs1";
 
     private void JoinGame()
     {
         if (!string.IsNullOrWhiteSpace(roomCode))
         {
-            Nav.NavigateTo($"/game/{selectedMode}/{roomCode}");
+            // Nusprendžiam pagal pirmą raidę, kur nukreipti
+            var code = roomCode.Trim().ToUpper();
+
+            if (code.StartsWith("A"))
+                Nav.NavigateTo($"/game/1vs1/{code}");
+            else if (code.StartsWith("M"))
+                Nav.NavigateTo($"/game/1vsmulti/{code}");
+            else
+                Console.WriteLine("Neteisingas kambario kodas: nežinomas prefiksas!");
         }
     }
 }
@@ -33,7 +35,6 @@
 <style>
 
 .join-input,
-.mode-select,
 .join-button {
     height: 48px; /* vienodas aukštis visiems */
     box-sizing: border-box;
@@ -64,8 +65,7 @@
     text-shadow: 0 2px 6px rgba(0,0,0,0.3);
 }
 /* Kad viskas išliktų vizualiai suderinta */
-.join-input,
-.mode-select {
+.join-input{
     width: 250px;
     padding: 0 15px; /* nulinis vertikalus padding, kad netemptų aukščio */
     border-radius: 10px;
@@ -105,23 +105,6 @@
     background-color: rgba(255, 255, 255, 0.15);
 }
 
-.mode-select {
-    width: 250px;
-    padding: 12px 15px;
-    border-radius: 10px;
-    border: 2px solid #f0e1b4;
-    background-color: rgba(255, 255, 255, 0.1);
-    color: #ffffff;
-    font-size: 18px;
-    margin-bottom: 20px;
-    outline: none;
-    text-align: center;
-}
-
-.mode-select option {
-    background-color: #2c425a;
-    color: white;
-}
 
 
 </style>
