@@ -901,6 +901,7 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand)),
                     // jei žaidimo nėra, sukurk tuščią variklį (kad UI nesugriūtų)
                     if (game == null)
                         game = new DurakGameEngine(new List<Player>());
+                        
 
                     game.State.IsGameOver = true;
 
@@ -1032,7 +1033,7 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand)),
 
     private async Task RefreshUI(List<string>? winners = null, List<string>? losers = null)
     {
-        if (game?.State?.IsGameOver == true && !statsSent)
+        if (!statsSent)
         {
             statsSent = true;
 
@@ -1078,7 +1079,10 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand)),
                     UserSession.SetUser(refreshedUser);
                     Console.WriteLine($"Updated Wins: {refreshedUser.Wins}, Losses: {refreshedUser.Losses}, XP: {refreshedUser.ExperiencePoints}, Level: {refreshedUser.Level}");
                 }
-
+ await InvokeAsync(() =>
+            {
+                NavigationManager.NavigateTo($"/gameover/{result}", forceLoad: true);
+            });
             }
 
             NavigationManager.NavigateTo($"/gameover/{result}");
