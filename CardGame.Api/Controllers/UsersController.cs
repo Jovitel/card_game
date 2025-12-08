@@ -54,8 +54,34 @@ namespace CardGame.Api.Controllers
             }
 
             // Grąžiname visą User objektą
-            return user; 
+            return user;
         }
+        [HttpPost("addxp/{userId}/{amount}")]
+        public async Task<IActionResult> AddXp(int userId, int amount)
+        {
+            var user = await _context.Users.FindAsync(userId);
+            if (user == null) return NotFound();
+
+            user.ExperiencePoints += amount;
+
+            // Didesnė XP kreivė – sunkesni lygiai
+            while (user.ExperiencePoints >= GetXpForNextLevel(user.Level))
+            {
+                user.ExperiencePoints -= GetXpForNextLevel(user.Level);
+                user.Level++;
+            }
+
+            await _context.SaveChangesAsync();
+            return Ok(user);
+        }
+
+        // Naujas pagalbinis metodas:
+        private static int GetXpForNextLevel(int level)
+        {
+            return (int)(100 * Math.Pow(level, 1.5)) + 150;
+        }
+
+
         [HttpPost("updateavatar")]
         public async Task<IActionResult> UpdateAvatar([FromBody] AvatarUpdateModel model)
         {
@@ -65,7 +91,7 @@ namespace CardGame.Api.Controllers
             }
 
             var user = await _context.Users.FirstOrDefaultAsync(u => u.Id == model.UserId);
-            
+
             if (user == null)
             {
                 return NotFound("Vartotojas nerastas.");
@@ -74,7 +100,7 @@ namespace CardGame.Api.Controllers
             // Atnaujiname avataro URL ir įrašome į DB
             user.AvatarUrl = model.AvatarUrl;
             await _context.SaveChangesAsync();
-            
+
             return Ok();
         }
         public class AvatarUpdateModel
@@ -113,9 +139,9 @@ namespace CardGame.Api.Controllers
             // 3. Atnaujiname vardą ir išsaugome DB
             userToUpdate.UserName = newUsername;
             await _context.SaveChangesAsync();
-            
+
             // Grąžiname sėkmės pranešimą (200 OK)
-            return Ok(userToUpdate); 
+            return Ok(userToUpdate);
         }
     }
     public class UsernameUpdateModel

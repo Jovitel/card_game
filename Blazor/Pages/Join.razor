@@ -31,61 +31,75 @@
         }
     }
 }
-
 <style>
-
+/* Vienodas aukštis visiems laukams */
 .join-input,
 .join-button {
-    height: 48px; /* vienodas aukštis visiems */
+    height: 48px;
     box-sizing: border-box;
 }
 
+/* Puslapio fonas ir išdėstymas */
 .join-page {
-    background-color: #2c425a;
+    background-color: var(--bg-color);
+    color: var(--text-color);
     min-height: 100vh;
     display: flex;
     align-items: center;
     justify-content: center;
-    color: #ffffff;
+    transition: background-color 0.3s, color 0.3s;
 }
 
+/* Pagrindinė dėžutė */
 .join-box {
-    background-color: rgba(255, 255, 255, 0.05);
-    border: 2px solid #f0e1b4;
+    background-color: var(--container-bg);
+    border: 2px solid var(--accent-color);
     border-radius: 20px;
     padding: 40px 60px;
-    box-shadow: 0 4px 15px rgba(0,0,0,0.4);
+    box-shadow: 0 4px 15px rgba(0, 0, 0, 0.4);
     text-align: center;
+    transition: background-color 0.3s, border-color 0.3s;
 }
 
+/* Pavadinimas */
 .join-title {
-    color: #f0e1b4;
+    color: var(--highlight-color);
     font-size: 28px;
     margin-bottom: 25px;
-    text-shadow: 0 2px 6px rgba(0,0,0,0.3);
+    text-shadow: 0 2px 6px rgba(0, 0, 0, 0.3);
 }
-/* Kad viskas išliktų vizualiai suderinta */
-.join-input{
+
+/* Įvesties laukelis */
+.join-input {
     width: 250px;
-    padding: 0 15px; /* nulinis vertikalus padding, kad netemptų aukščio */
+    padding: 0 15px;
     border-radius: 10px;
-    border: 2px solid #f0e1b4;
-    background-color: rgba(255, 255, 255, 0.1);
-    color: #ffffff;
+    border: 2px solid var(--accent-color);
+    background-color: var(--input-bg);
+    color: var(--text-color);
     font-size: 18px;
     text-align: center;
     outline: none;
-    transition: border-color 0.2s ease, background-color 0.2s ease;
+    transition: border-color 0.2s ease, background-color 0.2s ease, color 0.3s;
     margin-bottom: 15px;
 }
 
-/* Mygtukui taip pat taikome vienodą stilių */
+.join-input::placeholder {
+    color: var(--placeholder-color);
+}
+
+.join-input:focus {
+    border-color: var(--highlight-color);
+    background-color: var(--input-bg-focus);
+}
+
+/* Prisijungimo mygtukas */
 .join-button {
-    width: 250px; /* kad būtų vienodo pločio kaip ir kiti */
+    width: 250px;
     border: none;
     border-radius: 10px;
-    background-color: #f0e1b4;
-    color: #2c425a;
+    background-color: var(--btn-bg);
+    color: var(--btn-text);
     font-size: 18px;
     font-weight: bold;
     cursor: pointer;
@@ -93,18 +107,8 @@
 }
 
 .join-button:hover {
-    background-color: #ffd97a;
+    background-color: var(--btn-bg-hover);
     transform: translateY(-2px);
-    box-shadow: 0 4px 10px rgba(0,0,0,0.3);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
 }
-.join-input::placeholder {
-    color: #cccccc;
-}
-.join-input:focus {
-    border-color: #ffd97a;
-    background-color: rgba(255, 255, 255, 0.15);
-}
-
-
-
 </style>

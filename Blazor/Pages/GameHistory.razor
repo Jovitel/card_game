@@ -64,67 +64,63 @@ else
         NavigationManager.NavigateTo("/start");
     }
 }
-
 <style>
+
+
 body {
-    background-color: #a2c2de; /* arba kita spalva pagal dizainą */
+    background-color: var(--bg-color);
 }
-/* centrinis konteineris lentelėms */
+
+/* Centrinis konteineris lentelėms */
 .table-container {
     display: flex;
-    justify-content: center;   /* horizontalus centras */
+    justify-content: center;
     padding: 20px;
 }
-.history-table th, .history-table td {
+
+/* Lentelės antraštės ir langeliai */
+.history-table th,
+.history-table td {
     padding: 12px 15px;
     text-align: center;
 }
 
+/* Antraštės – naudoja akcentinę spalvą iš temos */
 .history-table th {
-    background-color: #2c425a; /* tamsiai mėlyna antraštė */
-    color: #f0e1b4;            /* šviesus tekstas */
+    background-color: var(--accent-color);
+    color: var(--highlight-color);
     font-weight: bold;
     text-transform: uppercase;
 }
 
+/* Eilutės – automatiškai pagal temą */
 .history-table tbody tr {
-    background-color: #f2f2f2;  /* šviesus fonas eilutėms */
+    background-color: var(--container-bg);
     transition: background-color 0.3s;
 }
 
+/* Kas antra eilutė – šiek tiek šviesesnė */
 .history-table tbody tr:nth-child(even) {
-    background-color: #e0e0e0;  /* kitokia spalva kas antrai eilutei */
+    background-color: color-mix(in srgb, var(--container-bg) 80%, white);
 }
 
+/* Užvedus paryškinama – imama iš highlight */
 .history-table tbody tr:hover {
-    background-color: #f0e1b4; /* paryškintas hover */
+    background-color: var(--highlight-color);
 }
+
+/* Bendri mygtukai – stilius jau ateina iš themes.css */
 .btn {
-    background-color: #2c425a;
-    color: white;
-    padding: 12px;
-    border: none;
-    border-radius: 8px;
-    font-size: 16px;
-    font-weight: bold;
-    cursor: pointer;
-    transition: 0.3s;
-    text-decoration: none;
-    text-align: center;
     min-width: 180px;
     max-height: 50px;
 }
 
-.btn:hover  {
-    background-color: #56708c;
-    color: #f0e1b4;
-}
+/* Lankstus grupės konteineris */
 .group {
     margin-top: 20px;
     display: flex;
     justify-content: space-between;
-    align-items: center;  
-    padding: 0 20px 20px 20px; /* padding: top right bottom left */
-
+    align-items: center;
+    padding: 0 20px 20px 20px;
 }
 </style>

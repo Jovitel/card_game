@@ -8,7 +8,7 @@
 @inject HttpClient Http
 @inject UserSession UserSession
 @inject UserSession Session
-@inject CardSettingsService CardSettingsService 
+@inject CardSettingsService CardSettingsService
 @implements IDisposable
 
 <div class="page-wrapper" style="background-color: @CardSettingsService.SelectedTableColor;">
@@ -24,19 +24,19 @@
                 <div class="opponent-hand-small">
                     @for (int i = 0; i < bot.Hand.Count; i++)
                     {
-                        <div class="card-small"><BackCard /></div>
+                        <div class="card-small">
+                            <BackCard />
+                        </div>
                     }
                 </div>
             </div>
         </div>
 
         <!-- Kaladė ir eilės tekstas -->
-       <div class="deck-wrapper">
-    <DeckView 
-        RemainingCardsCount="game.State.Deck.CardsLeft"
-        TrumpCard="game.State.Deck.TrumpCard" />
-    <div class="turn-info">@game.GetTurnText(humanPlayer)</div>
-</div>
+        <div class="deck-wrapper">
+            <DeckView RemainingCardsCount="game.State.Deck.CardsLeft" TrumpCard="game.State.Deck.TrumpCard" />
+            <div class="turn-info">@game.GetTurnText(humanPlayer)</div>
+        </div>
 
         <!-- Mygtukai -->
         <div class="turn-buttons">
@@ -85,12 +85,11 @@
                 {
                     var card = humanPlayer.Hand[i];
                     bool canPlay =
-                        ((game.State.Attacker == humanPlayer && game.CanAttackWith(humanPlayer, card)) ||
-                         (game.State.Defender == humanPlayer && game.CanDefendWith(humanPlayer, card)));
+                    ((game.State.Attacker == humanPlayer && game.CanAttackWith(humanPlayer, card)) ||
+                    (game.State.Defender == humanPlayer && game.CanDefendWith(humanPlayer, card)));
 
-                    <div class="@(canPlay ? "" : "tooltip-container")"
-                         data-tooltip="@(canPlay ? "" : "Negalima naudoti kortos")"
-                         style="--index:@i; --count:@humanPlayer.Hand.Count;">
+                    <div class="@(canPlay ? "" : "tooltip-container")" data-tooltip="@(canPlay ? "" : "Negalima naudoti kortos")"
+                        style="--index:@i; --count:@humanPlayer.Hand.Count;">
                         <GameCard Card="card" Disabled="!canPlay" OnPlay="() => PlayCard(card)" />
                     </div>
                 }
@@ -101,8 +100,8 @@
         <div class="player-info-bar">
             <img src="@Session.SelectedAvatarUrl" alt="Mano Avataras" class="player-avatar-small" />
             <span class="opponent-label" style="margin-left:10px;">
-@(UserSession?.Username ?? humanPlayer?.Name ?? "Žaidėjas")
-</span>
+                @(UserSession?.Username ?? humanPlayer?.Name ?? "Žaidėjas")
+            </span>
 
         </div>
     }
@@ -160,11 +159,11 @@
         {
             if (game.Attack(humanPlayer, card))
             {
-                 UserSession.AddGameHistoryEntry(
-                    turnNumber: game.State.TurnNumber,
-                    player: humanPlayer.Name,
-                    action: "ATTACK",
-                    cardPlayed: card
+                UserSession.AddGameHistoryEntry(
+                turnNumber: game.State.TurnNumber,
+                player: humanPlayer.Name,
+                action: "ATTACK",
+                cardPlayed: card
                 );
                 Console.WriteLine($"[ACTION] {humanPlayer.Name} atakavo su {card}");
                 await RefreshUI();
@@ -180,11 +179,11 @@
             if (attackCard != null && game.Defend(humanPlayer, attackCard, card))
             {
                 UserSession.AddGameHistoryEntry(
-                    turnNumber: game.State.TurnNumber,
-                    player: humanPlayer.Name,
-                    action: "DEFEND",
-                    cardPlayed: card,
-                    attackCard: attackCard
+                turnNumber: game.State.TurnNumber,
+                player: humanPlayer.Name,
+                action: "DEFEND",
+                cardPlayed: card,
+                attackCard: attackCard
                 );
 
                 Console.WriteLine($"[ACTION] {humanPlayer.Name} ginasi su {card} nuo {attackCard}");
@@ -225,10 +224,10 @@
         }
 
         UserSession.AddGameHistoryEntry(
-            turnNumber: game.State.TurnNumber,
-            player: humanPlayer.Name,
-            action: "PICKUP"
-        );
+        turnNumber: game.State.TurnNumber,
+        player: humanPlayer.Name,
+        action: "PICKUP"
+                );
 
         game.State.TableCards.Clear();
         await game.EndTurnWithDelay(true, RefreshUI);
@@ -241,11 +240,11 @@
 
         Console.WriteLine("[INFO] Žaidėjas baigia ėjimą.");
 
-       UserSession.AddGameHistoryEntry(
-            turnNumber: game.State.TurnNumber,
-            player: game.State.Attacker.Name,
-            action: "ENDTURN"
-        );
+        UserSession.AddGameHistoryEntry(
+        turnNumber: game.State.TurnNumber,
+        player: game.State.Attacker.Name,
+        action: "ENDTURN"
+                );
 
         await game.EndTurnWithDelay(false, RefreshUI);
         await game.RunBotTurn(RefreshUI);
@@ -267,6 +266,9 @@
                 if (playerWon)
                 {
                     response = await Http.PostAsync($"api/stats/win/{UserSession.UserId}", null);
+                    await Http.PostAsync($"api/users/addxp/{UserSession.UserId}/50", null); // Pvz. 50 XP už laimėjimą prieš botą
+
+
                     Console.WriteLine($"POST win status: {response.StatusCode}");
                 }
                 else
@@ -274,13 +276,13 @@
                     response = await Http.PostAsync($"api/stats/loss/{UserSession.UserId}", null);
                     Console.WriteLine($"POST loss status: {response.StatusCode}");
                 }
-
-                var updatedUser = await Http.GetFromJsonAsync<User>($"api/users/{UserSession.UserId}");
-                if (updatedUser != null)
+                var refreshedUser = await Http.GetFromJsonAsync<User>($"api/users/{UserSession.UserId}");
+                if (refreshedUser != null)
                 {
-                    UserSession.SetUser(updatedUser);
-                    Console.WriteLine($"Updated Wins: {updatedUser.Wins}, Losses: {updatedUser.Losses}");
+                    UserSession.SetUser(refreshedUser);
+                    Console.WriteLine($"Updated Wins: {refreshedUser.Wins}, Losses: {refreshedUser.Losses}, XP: {refreshedUser.ExperiencePoints}, Level: {refreshedUser.Level}");
                 }
+
             }
 
             NavigationManager.NavigateTo($"/gameover/{result}");
@@ -294,100 +296,104 @@
 
 
 <style>
-.page-wrapper {
-    background-color: #2c425a;
-    min-height: 100vh;
-    display: flex;
-    flex-direction: column;
-    align-items: center;
-    justify-content: space-between;
-    box-sizing: border-box;
-    padding: 20px;
-}
+    .page-wrapper {
+        background-color: var(--bg-color);
+        min-height: 100vh;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        justify-content: space-between;
+        box-sizing: border-box;
+        padding: 20px;
+    }
 
-.multi-opponents {
-    position: fixed;
-    top: 10px;
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    justify-content: center;
-    align-items: flex-start;
-    gap: 120px;
-    width: 100%;
-    z-index: 10;
-}
+    .multi-opponents {
+        position: fixed;
+        top: 10px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        gap: 120px;
+        width: 100%;
+        z-index: 10;
+    }
 
-.opponent-hand-small {
-    display: flex;
-    flex-direction: row;
-    align-items: center;
-    justify-content: center;
-    gap: 4px;
-    transform: scale(0.85);
-}
+    .opponent-hand-small {
+        display: flex;
+        flex-direction: row;
+        align-items: center;
+        justify-content: center;
+        gap: 4px;
+        transform: scale(0.85);
+    }
 
-.opponent-info-bar {
-    background-color: #a2c2de;
-    border: 2px solid #f0e1b4;
-    border-radius: 15px;
-    width: 200px;
-    height: 40px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-    gap: 6px;
-}
+    .opponent-info-bar {
+        background-color: #a2c2de;
+        border: 2px solid #f0e1b4;
+        border-radius: 15px;
+        width: 200px;
+        height: 40px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+        gap: 6px;
+    }
 
-.opponent-label {
-    color: #1c2d3e;
-    font-size: 13px;
-    font-weight: 600;
-}
+    .opponent-label {
+        color: #1c2d3e;
+        font-size: 13px;
+        font-weight: 600;
+    }
 
-.card-small {
-    width: 40px;
-    height: 62px;
-}
+    .card-small {
+        width: 40px;
+        height: 62px;
+    }
 
-.table-cards {
-    display: flex;
-    justify-content: center;
-    align-items: flex-start;
-    gap: 45px;
-    margin-top: 200px;     /* BUVO 200px – dabar aukščiau */
-    margin-bottom: 140px;  /* didesnis tarpas iki žaidėjo kortų */
-}
-.table-pair {
-    position: relative;
-    width: 110px;
-    height: 160px;
-    display: flex;
-    align-items: center;
-    justify-content: center;
-}
+    .table-cards {
+        display: flex;
+        justify-content: center;
+        align-items: flex-start;
+        gap: 45px;
+        margin-top: 200px;
+        /* BUVO 200px – dabar aukščiau */
+        margin-bottom: 140px;
+        /* didesnis tarpas iki žaidėjo kortų */
+    }
 
-.attack-card {
-    width: 100px;
-    height: 150px;
-}
+    .table-pair {
+        position: relative;
+        width: 110px;
+        height: 160px;
+        display: flex;
+        align-items: center;
+        justify-content: center;
+    }
 
-.defend-card {
-    position: absolute;
-    top: 40px;
-    left: 25px;
-}
+    .attack-card {
+        width: 100px;
+        height: 150px;
+    }
 
-.player-hand {
-    position: fixed;
-    bottom: 90px;
-    left: 50%;
-    transform: translateX(-50%);
-    display: flex;
-    justify-content: center;
-    gap: 0;
-}
- /* --- mygtukai --- */
+    .defend-card {
+        position: absolute;
+        top: 40px;
+        left: 25px;
+    }
+
+    .player-hand {
+        position: fixed;
+        bottom: 90px;
+        left: 50%;
+        transform: translateX(-50%);
+        display: flex;
+        justify-content: center;
+        gap: 0;
+    }
+
+    /* --- mygtukai --- */
     .turn-buttons {
         position: fixed;
         right: 30px;
@@ -453,89 +459,96 @@
     }
 
 
-.turn-info {
-    color: #f0e1b4;
-    font-size: 18px;
-    font-weight: 500;
-    text-align: center;
-    margin-top: 6px;
-}
+    .turn-info {
+        color: #f0e1b4;
+        font-size: 18px;
+        font-weight: 500;
+        text-align: center;
+        margin-top: 6px;
+    }
 
-.player-info-bar {
-    position: fixed;
-    bottom: 5px;
-    left: 50%;
-    transform: translateX(-50%);
-    width: 55%;
-    height: 50px;
-    background-color: #a2c2de;
-    border-radius: 20px;
-    border: 2px solid #f0e1b4;
-    display: flex;
-    align-items: center;
-    justify-content: flex-start;
-    padding: 8px 16px;
-}
+    .player-info-bar {
+        position: fixed;
+        bottom: 5px;
+        left: 50%;
+        transform: translateX(-50%);
+        width: 55%;
+        height: 50px;
+        background-color: #a2c2de;
+        border-radius: 20px;
+        border: 2px solid #f0e1b4;
+        display: flex;
+        align-items: center;
+        justify-content: flex-start;
+        padding: 8px 16px;
+    }
 
-.profile-placeholder {
-    width: 40px;
-    height: 40px;
-    background-color: #ddd;
-    border-radius: 50%;
-    border: 2px solid #bbb;
-}
+    .profile-placeholder {
+        width: 40px;
+        height: 40px;
+        background-color: #ddd;
+        border-radius: 50%;
+        border: 2px solid #bbb;
+    }
 
-.tooltip-container {
-    position: relative;
-    cursor: not-allowed;
-}
-.deck-wrapper {
-    position: fixed;
-    top: 45%;               /* šiek tiek aukščiau, kad būtų per vidurį */
-    left: 40px;             /* kairėje pusėje ekrano */
-    transform: translateY(-50%);
-    display: flex;
-    flex-direction: column; /* leidžia info tekstą dėti po kalade */
-    align-items: center;
-    gap: 8px;               /* tarpas tarp kaladės ir teksto */
-    z-index: 20;
-}
+    .tooltip-container {
+        position: relative;
+        cursor: not-allowed;
+    }
 
-.tooltip-container[data-tooltip]:hover::after {
-    content: attr(data-tooltip);
-    position: absolute;
-    left: 50%;
-    transform: translateX(-50%);
-    white-space: nowrap;
-    background-color: #56708c;
-    color: #f0e1b4;
-    padding: 6px 12px;
-    border-radius: 8px;
-    font-size: 13px;
-    z-index: 100;
-    margin-bottom: 9px;
-    box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
-    opacity: 0;
-    visibility: hidden;
-    transition: opacity 0.2s ease, visibility 0.2s ease;
-}
+    .deck-wrapper {
+        position: fixed;
+        top: 45%;
+        /* šiek tiek aukščiau, kad būtų per vidurį */
+        left: 40px;
+        /* kairėje pusėje ekrano */
+        transform: translateY(-50%);
+        display: flex;
+        flex-direction: column;
+        /* leidžia info tekstą dėti po kalade */
+        align-items: center;
+        gap: 8px;
+        /* tarpas tarp kaladės ir teksto */
+        z-index: 20;
+    }
 
-.tooltip-container[data-tooltip]:hover::after {
-    opacity: 1;
-    visibility: visible;
-}
-.player-avatar-small {
+    .tooltip-container[data-tooltip]:hover::after {
+        content: attr(data-tooltip);
+        position: absolute;
+        left: 50%;
+        transform: translateX(-50%);
+        white-space: nowrap;
+        background-color: #56708c;
+        color: #f0e1b4;
+        padding: 6px 12px;
+        border-radius: 8px;
+        font-size: 13px;
+        z-index: 100;
+        margin-bottom: 9px;
+        box-shadow: 0 4px 6px rgba(0, 0, 0, 0.2);
+        opacity: 0;
+        visibility: hidden;
+        transition: opacity 0.2s ease, visibility 0.2s ease;
+    }
+
+    .tooltip-container[data-tooltip]:hover::after {
+        opacity: 1;
+        visibility: visible;
+    }
+
+    .player-avatar-small {
         width: 50px;
         height: 50px;
         border-radius: 50%;
-        border: 2px solid #bbb; 
+        border: 2px solid #bbb;
         object-fit: cover;
-} 
-.opponent-avatar {
+    }
+
+    .opponent-avatar {
         width: 40px;
         height: 40px;
         border-radius: 50%;
-        border: 2px solid #bbb; 
+        border: 2px solid #bbb;
         object-fit: cover;
-}
+    }
 </style>
