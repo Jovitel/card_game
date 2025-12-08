@@ -166,7 +166,14 @@
             NavigationManager.NavigateTo("/login");
             return;
         }
-
+    if (UserSession.CurrentUser != null)
+    {
+        // 1. Įkeliame Kortų Nugarėlės Spalvą
+        CardSettingsService.SetCardColor(UserSession.CurrentUser.SelectedCardColor);
+        
+        // 2. Įkeliame Stalo Fono Spalvą
+        CardSettingsService.SetTableColor(UserSession.CurrentUser.SelectedTableColor);
+    }
         GameClient.OnStartGame += HostStartGame;
         GameClient.OnGameActionReceived += ApplyAction;
 
