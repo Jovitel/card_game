@@ -153,13 +153,6 @@
         CardSettingsService.OnChange += StateHasChanged;
        
     }
-
-    // PRIVALOMA: Įgyvendinamas Dispose metodas, kad atšauktume prenumeratą
-    public void Dispose()
-    {
-        CardSettingsService.OnChange -= StateHasChanged;
-    
-    }
     
     protected override async Task OnInitializedAsync()
     {
@@ -827,6 +820,7 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand))
                 if (playerWon)
                 {
                     response = await Http.PostAsync($"api/stats/win/{UserSession.UserId}", null);
+                    await Http.PostAsync($"api/users/addxp/{UserSession.UserId}/100", null); // 100 XP už 1vs1 laimėjimą
                     Console.WriteLine($"POST win status: {response.StatusCode}");
                 }
                 else
@@ -835,12 +829,15 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand))
                     Console.WriteLine($"POST loss status: {response.StatusCode}");
                 }
 
-                var updatedUser = await Http.GetFromJsonAsync<User>($"api/users/{UserSession.UserId}");
-                if (updatedUser != null)
+                // Atnaujiname sesijos duomenis po XP ir laimėjimo
+                var refreshedUser = await Http.GetFromJsonAsync<User>($"api/users/{UserSession.UserId}");
+                if (refreshedUser != null)
                 {
-                    UserSession.SetUser(updatedUser);
-                    Console.WriteLine($"Updated Wins: {updatedUser.Wins}, Losses: {updatedUser.Losses}");
+                    UserSession.SetUser(refreshedUser);
+                    Console.WriteLine($"Updated Wins: {refreshedUser.Wins}, Losses: {refreshedUser.Losses}, XP: {refreshedUser.ExperiencePoints}, Level: {refreshedUser.Level}");
                 }
+
+               
             }
 
             NavigationManager.NavigateTo($"/gameover/{result}");
@@ -853,6 +850,7 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand))
 
     public void Dispose()
 {
+    CardSettingsService.OnChange -= StateHasChanged;
     GameClient.OnStartGame -= HostStartGame;
     GameClient.OnGameActionReceived -= ApplyAction;
 }
@@ -861,7 +859,7 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand))
 
 <style>
     .page-wrapper {
-        background-color: #2c425a;
+        background-color: var(--bg-color);
         min-height: 100vh;
         display: flex;
         flex-direction: column;

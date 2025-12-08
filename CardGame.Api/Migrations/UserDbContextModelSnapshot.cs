@@ -30,9 +30,15 @@ namespace CardGame.Api.Migrations
                         .IsRequired()
                         .HasColumnType("TEXT");
 
+                    b.Property<int>("ExperiencePoints")
+                        .HasColumnType("INTEGER");
+
                     b.Property<string>("Friends")
                         .IsRequired()
                         .HasColumnType("TEXT");
+
+                    b.Property<int>("Level")
+                        .HasColumnType("INTEGER");
 
                     b.Property<int>("Losses")
                         .HasColumnType("INTEGER");

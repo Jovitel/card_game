@@ -42,53 +42,48 @@
     }
 }
 <style>
+/* Bendras modalo išdėstymas ir dydžiai, spalvos imamos iš themes.css */
+
 .image {
-    width: 500px;  /* Nustato nuotraukos plotį */
-    height: auto;  /* Automatiškai išlaiko proporcijas */
-    margin-bottom: 10px; /* Šiek tiek vietos tarp nuotraukos ir mygtukų */
+    width: 500px;
+    height: auto;
+    margin-bottom: 10px;
 }
+
+/* Pusiau permatomas fonas (overlay) */
 .modal-overlay {
     position: fixed;
     top: 0; left: 0; right: 0; bottom: 0;
-    background:  #2c425a;
+    background: rgba(0, 0, 0, 0.6); /* peršviečiamas fonas vietoj fiksuotos spalvos */
     display: flex;
     justify-content: center;
     align-items: center;
     z-index: 1000;
 }
+
+/* Modalo turinys */
 .modal-content {
-    background: #a2c2de;
+    background-color: var(--container-bg);
+    color: var(--text-color);
     padding: 40px 60px;
     border-radius: 20px;
     text-align: center;
-    box-shadow: 0 5px 20px rgba(0,0,0,0.3);
+    box-shadow: 0 5px 20px rgba(0, 0, 0, 0.3);
     z-index: 10000;
+    transition: background-color 0.3s, color 0.3s;
 }
+
+/* Mygtukų grupė */
 .button-group {
     margin-top: 20px;
     display: flex;
     justify-content: center;
     gap: 20px;
 }
+
+/* Bendras mygtukų dizainas – naudojamas globalus iš themes.css */
 .btn {
-    background-color: #2c425a;
-    color: white;
-    padding: 12px;
-    border: none;
-    border-radius: 8px;
-    font-size: 16px;
-    font-weight: bold;
-    cursor: pointer;
-    transition: 0.3s;
-    text-decoration: none;
-    text-align: center;
     min-width: 180px;
     max-height: 50px;
 }
-
-.btn:hover  {
-    background-color: #56708c;
-    color: #f0e1b4;
-}
-
 </style>

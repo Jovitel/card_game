@@ -32,89 +32,81 @@
         </div>
     </div>
 </div>
-
 <style>
+/* Bendras puslapio fonas */
 .page-wrapper {
-    background-color: #2c425a;
+    background-color: var(--bg-color);
+    color: var(--text-color);
     display: flex;
     justify-content: center;
     align-items: center;
     min-height: 100vh;
-    padding: 5px;
+    padding: 20px;
     box-sizing: border-box;
+    transition: background-color 0.3s, color 0.3s;
 }
 
+/* Konteineris */
 .container {
-    background-color: #a2c2de;
+    background-color: var(--container-bg);
     width: 98%;
     max-width: 1300px;
     min-height: 500px;
-    padding: 10px;
+    padding: 20px;
     border-radius: 12px;
-    box-shadow: 0 4px 10px rgba(0,0,0,0.2);
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.25);
     display: flex;
     flex-direction: column;
     align-items: center;
-}
-.header {
-    width: 100%;
-    display: flex;
-    justify-content: center;
-    margin-bottom: 20px;
+    transition: background-color 0.3s, color 0.3s;
 }
 
-.exit-wrapper {
-    width: 100%;
-    display: flex;
-    justify-content: center;
-    margin-top: 20px;
-}
-.exit-btn {
-    min-width: 120px;
-    padding: 10px 20px;
-    font-size: 14px;
-}
-
+/* Viršutinė nuotrauka */
 .top-image {
     width: 230px;
     height: auto;
     border-radius: 12px;
+    margin-bottom: 30px;
+    box-shadow: 0 4px 10px rgba(0, 0, 0, 0.3);
 }
 
+/* Bendras mygtuko stilius */
 .btn {
-    background-color: #2c425a;
-    color: white;
-    padding: 12px;
+    background-color: var(--btn-bg);
+    color: var(--btn-text);
+    padding: 12px 24px;
     border: none;
     border-radius: 8px;
     font-size: 16px;
     font-weight: bold;
     cursor: pointer;
-    transition: 0.3s;
+    transition: all 0.3s ease;
     text-decoration: none;
     text-align: center;
-    min-width: 180px;
+    min-width: 160px;
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.4);
 }
 
 .btn:hover {
-    background-color: #56708c;
-    color: #f0e1b4;
+    background-color: var(--btn-bg-hover);
+    color: var(--btn-text-hover);
 }
 
-/* Kortų eilutė */
+/* Kortų pasirinkimų eilutė */
 .cards-row {
     display: flex;
     flex-direction: row;
     justify-content: center;
     gap: 20px;
-   
+    flex-wrap: wrap;
+    margin-top: 20px;
 }
 
-/* Kortos mygtukas */
+/* Kiekvienos kortos (žaidimo režimo pasirinkimo) dizainas */
 .card-btn {
-    background-color: white;
-    color: black;
-    border: 3px solid #2c425a;
+    background-color: var(--card-bg);
+    color: var(--text-color);
+    border: 3px solid var(--accent-color);
     border-radius: 12px;
     cursor: pointer;
     text-decoration: none;
@@ -123,20 +115,19 @@
     align-items: center;
     justify-content: center;
     width: 200px;
-    height: 350px;
-    transition: 0.3s;
+    height: 320px;
+    transition: all 0.3s ease;
     padding: 10px;
-    position: relative;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.2);
+    box-shadow: 0 4px 8px rgba(0, 0, 0, 0.25);
 }
 
 .card-btn:hover {
-    background-color: #f0f0f0;
+    background-color: var(--hover-bg);
     transform: translateY(-5px);
-    color: #2867abff;
+    color: var(--highlight-color);
 }
 
-/* Kortos tekstas */
+/* Kortų tekstas */
 .card-rank {
     font-size: 20px;
     font-weight: 600;
@@ -146,12 +137,25 @@
 
 .card-suit {
     font-size: 80px;
-    color: black;
+    color: var(--text-color);
 }
 
-/* Raudoni simboliai */
-.card-btn:nth-child(2) .card-suit,
-.card-btn:nth-child(3) .card-suit {
-    color: red;
+/* Raudonos kortos */
+.card-btn.red .card-suit {
+    color: var(--card-red);
+}
+
+/* Apatinė sekcija su išeities mygtuku */
+.exit-wrapper {
+    width: 100%;
+    display: flex;
+    justify-content: center;
+    margin-top: 40px;
+}
+
+.exit-btn {
+    min-width: 140px;
+    padding: 10px 20px;
+    font-size: 15px;
 }
 </style>

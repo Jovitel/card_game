@@ -22,5 +22,7 @@ builder.Services.AddScoped(sp => new HttpClient
 builder.Services.AddSingleton<GameClientService>();
 builder.Services.AddSingleton<CardSettingsService>();
 
+builder.Services.AddScoped<ThemeService>();
+
 await builder.Build().RunAsync();
 

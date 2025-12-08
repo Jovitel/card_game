@@ -129,122 +129,19 @@
         searchResults.Clear();
     }
 }
-
 <style>
+/* Tik unikalūs šio puslapio stiliai, be spalvų (spalvas ima iš themes.css) */
 .friends-page {
     padding: 30px;
-    background-color: #2c425a;
-    color: #f0e1b4;
     min-height: 100vh;
 }
 
 h2, h3, h4 {
-    color: #f0e1b4;
     text-align: center;
     margin-bottom: 20px;
 }
 
-
-
-.search-section {
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    gap: 10px;
-    margin-bottom: 20px;
-}
-
-.search-input {
-    padding: 8px 12px;
-    border-radius: 8px;
-    border: 2px solid #f0e1b4;
-    width: 250px;
-    background: #fff;
-    color: #1c2d3e;
-}
-
-.results ul {
-    list-style: none;
-    padding: 0;
-    max-width: 500px;
-    margin: 0 auto;
-}
-
-.results li {
-    display: flex;
-    justify-content: space-between;
-    align-items: center;
-    background-color: #a2c2de;
-    padding: 8px 14px;
-    margin-bottom: 8px;
-    border-radius: 8px;
-    color: #1c2d3e;
-}
-
-.btn {
-    padding: 6px 12px;
-    border: none;
-    border-radius: 8px;
-    cursor: pointer;
-    font-weight: 600;
-    transition: 0.2s ease;
-}
-
-.btn-search {
-    background-color: #3a5a8c;
-    color: #fff;
-}
-
-.btn-add {
-    background-color: #5a8c3a;
-    color: #fff;
-}
-
-.btn-disabled {
-    background-color: #aaa;
-    color: #eee;
-    cursor: not-allowed;
-}
-
-.btn-search:hover {
-    background-color: #507bc0;
-}
-
-.btn-add:hover {
-    background-color: #6cae48;
-}
-.btn-back {
-    background-color: #3a5a8c;
-    color: #fff;
-    padding: 8px 14px;
-    border-radius: 8px;
-    text-decoration: none;
-    font-weight: 600;
-    margin-bottom: 15px;
-    display: inline-block;
-}
-.btn-back:hover {
-    background-color: #507bc0;
-}
-
-.btn-floating-back {
-    position: fixed;
-    bottom: 30px;
-    right: 30px;
-    background-color: #3a5a8c;
-    color: #fff;
-    padding: 10px 18px;
-    border-radius: 10px;
-    text-decoration: none;
-    font-weight: 600;
-    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
-    transition: 0.3s;
-}
-
-.btn-floating-back:hover {
-    background-color: #507bc0;
-    transform: translateY(-2px);
-}
+/* Maketavimas */
 .friends-layout {
     display: grid;
     grid-template-columns: 1fr 1fr;
@@ -259,24 +156,64 @@ h2, h3, h4 {
     box-shadow: 0 4px 10px rgba(0,0,0,0.2);
 }
 
-.friends-list {
-    color: #f0e1b4;
+/* Paieškos sekcija */
+.search-section {
+    display: flex;
+    justify-content: center;
+    align-items: center;
+    gap: 10px;
+    margin-bottom: 20px;
 }
 
-.friends-search {
-    color: #1c2d3e;
+/* Input */
+.search-input {
+    padding: 8px 12px;
+    border-radius: 8px;
+    width: 250px;
 }
 
+/* Rezultatų blokas */
+.results ul {
+    list-style: none;
+    padding: 0;
+    max-width: 500px;
+    margin: 0 auto;
+}
+
+.results li {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    background-color: var(--container-bg);
+    padding: 8px 14px;
+    margin-bottom: 8px;
+    border-radius: 8px;
+    color: var(--text-color);
+}
+
+/* Lentelė */
 .friends-table {
     width: 100%;
     border-collapse: collapse;
 }
 
 .friends-table th, .friends-table td {
-    border-bottom: 2px solid #2c425a;
+    border-bottom: 2px solid var(--accent-color);
     padding: 8px 10px;
     text-align: center;
 }
 
+/* Fiksuotas grįžimo mygtukas */
+.btn-floating-back {
+    position: fixed;
+    bottom: 30px;
+    right: 30px;
+    padding: 10px 18px;
+    border-radius: 10px;
+    box-shadow: 0 4px 8px rgba(0,0,0,0.3);
+    transition: 0.3s;
+}
+.btn-floating-back:hover {
+    transform: translateY(-2px);
+}
 </style>
-

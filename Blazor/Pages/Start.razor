@@ -20,8 +20,20 @@
                             Save UserName
                         </button>
                         <input type="text" class="input-field" readonly value="Wins: @UserSession.CurrentUser?.Wins" />
-                        <input type="text" class="input-field" readonly
-                            value="Losses: @UserSession.CurrentUser?.Losses" />
+<input type="text" class="input-field" readonly value="Losses: @UserSession.CurrentUser?.Losses" />
+<input type="text" class="input-field" readonly value="Level: @UserSession.CurrentUser?.Level" />
+
+@if (UserSession.CurrentUser != null)
+{
+    <div class="xp-bar-container">
+        <div class="xp-bar" style="width:@GetXpPercent()"></div>
+        <span class="xp-label">
+            XP: @UserSession.CurrentUser.ExperiencePoints / @GetXpForNextLevel(UserSession.CurrentUser.Level)
+        </span>
+    </div>
+}
+
+
                     </div>
                 </div>
                 <img src="images/durnius.png" alt="Žaidimo nuotrauka" class="top-image" />
@@ -213,6 +225,23 @@
             Console.WriteLine($"Klaida: {ex.Message}");
         }
     }
+
+    private string GetXpPercent()
+{
+    if (UserSession.CurrentUser == null)
+        return "0%";
+
+    int xp = UserSession.CurrentUser.ExperiencePoints;
+    int required = GetXpForNextLevel(UserSession.CurrentUser.Level);
+    double percent = Math.Min(100.0, (xp / (double)required) * 100.0);
+    return $"{percent:F0}%";
+}
+
+private static int GetXpForNextLevel(int level)
+{
+    return (int)(100 * Math.Pow(level, 1.5)) + 150;
+}
+
 }
 
 <style>
@@ -249,7 +278,7 @@
     }
 
     .page-wrapper {
-        background-color: #2c425a;
+        background-color: var(--bg-color);
         display: flex;
         justify-content: center;
         align-items: center;
@@ -258,7 +287,7 @@
     }
 
     .container {
-        background: #a2c2de;
+        background: var(--container-bg);
         width: 98%;
         max-width: 1300px;
         min-height: 500px;
@@ -284,7 +313,6 @@
 
     .input-field {
         padding: 8px;
-        border: 2px solid #2c425a;
         border-radius: 20px;
         font-size: 16px;
         height: 50px;
@@ -293,7 +321,6 @@
 
     .circle {
         padding: 8px;
-        border: 2px solid #2c425a;
         border-radius: 100px;
         font-size: 16px;
         height: 70px;
@@ -339,8 +366,8 @@
     }
 
     .btn {
-        background-color: #2c425a;
-        color: white;
+        background-color: var(--btn-bg);
+        color: var(--btn-text);
         padding: 12px;
         border: none;
         border-radius: 8px;
@@ -355,8 +382,9 @@
     }
 
     .btn:hover {
-        background-color: #56708c;
-        color: #f0e1b4;
+        background-color: var(--btn-bg-hover);
+        color: var(--btn-text-hover);
+
     }
 
     .square.leaderboard {
@@ -366,15 +394,15 @@
         justify-content: flex-start;
         width: 340px;
         min-height: 220px;
-        background-color: #ffffff;
+        background-color: var(--container-bg);
         border-radius: 12px;
-        border: 7px solid #2c425a;
+        border: 3px solid var(--accent-color);
         padding: 15px 10px;
         box-sizing: border-box;
     }
 
     .leaderboard h3 {
-        color: #2c425a;
+        color: var(--highlight-color);
         text-align: center;
         margin-bottom: 12px;
         font-size: 22px;
@@ -395,14 +423,16 @@
         grid-template-columns: 40px 1fr 50px 50px;
         align-items: center;
         padding: 6px 10px;
-        border-bottom: 2px solid #2c425a;
+        border-bottom: 2px solid var(--accent-color);
         font-weight: 600;
-        color: #1c2d3e;
+        color: var(--text-color);
         text-align: center;
     }
 
     .leader-row.me {
-        background-color: #f0e1b4;
+        background-color: var(--highlight-color);
+    color: var(--bg-color);
+
         font-weight: 700;
     }
 
@@ -429,15 +459,16 @@
     .btnn svg {
         width: 32px;
         height: 32px;
-        color: #2c425a;
+         color: var(--accent-color);
         transition: 0.3s;
     }
 
     .btnn:hover svg {
-        color: #56708c;
+         color: var(--highlight-color);
+
     }
     .profile-avatar {
-    border: 2px solid #2c425a;
+    border: 2px solid var(--accent-color);
     border-radius: 50%; /* Padaro apvalų */
     height: 70px;
     width: 70px;
@@ -445,8 +476,9 @@
     padding: 0; 
 }
 .btn-save-name {
-        background-color: #2c425a;
-        color: white;
+         background-color: var(--btn-bg);
+    color: var(--btn-text);
+
         padding: 5px 12px;
         border: none;
         border-radius: 20px;
@@ -482,4 +514,39 @@
         background-color: #ddf;
         border-color: #008000;
     }
+
+    /* --- XP bar --- */
+.xp-bar-container {
+    position: relative;
+    width: 150px;
+    height: 20px;
+    background-color: var(--section-bg);
+
+    border-radius: 10px;
+     border: 2px solid var(--accent-color);
+
+    overflow: hidden;
+    margin-top: 4px;
+}
+
+.xp-bar {
+    height: 100%;
+     background-color: var(--highlight-color);
+
+    transition: width 0.5s ease-in-out;
+}
+.xp-label {
+    position: absolute;
+    width: 100%;
+    text-align: center;
+    font-size: 12px;
+    font-weight: 600;
+      color: var(--text-color);
+
+    top: 0;
+    line-height: 16px;
+    text-shadow: 0 1px 1px rgba(255, 255, 255, 0.6);
+}
+
+
 </style>

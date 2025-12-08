@@ -19,7 +19,8 @@ namespace CardGame.Shared.Models
 
         public int Wins { get; set; } = 0;
         public int Losses { get; set; } = 0;
-
+        public int ExperiencePoints { get; set; } = 0;  // XP
+        public int Level { get; set; } = 1;              // Lygis
         public List<int> Friends { get; set; } = new(); // saugomi draugų ID
 
         public string AvatarUrl { get; set; } = "images/default_avatar.png";
