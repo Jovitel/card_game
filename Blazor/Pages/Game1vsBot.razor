@@ -125,7 +125,21 @@
         // Prenumeruojame paslaugos pokyčius, kad atnaujintume UI keičiantis stalo spalvai
         CardSettingsService.OnChange += StateHasChanged;
     }
-
+    protected override async Task OnInitializedAsync()
+    {
+        // Pirmiausia patikriname, ar vartotojas prisijungęs.
+        if (UserSession.CurrentUser == null || UserSession.UserId <= 0)
+        {
+        }
+        else 
+        {
+            // 1. Įkeliame Kortų Nugarėlės Spalvą
+            CardSettingsService.SetCardColor(UserSession.CurrentUser.SelectedCardColor);
+            
+            // 2. Įkeliame Stalo Fono Spalvą
+            CardSettingsService.SetTableColor(UserSession.CurrentUser.SelectedTableColor);
+        }
+    }
     // PRIVALOMA: Įgyvendinamas Dispose metodas, kad atšauktume prenumeratą
     public void Dispose()
     {

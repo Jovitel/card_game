@@ -143,10 +143,46 @@ namespace CardGame.Api.Controllers
             // Grąžiname sėkmės pranešimą (200 OK)
             return Ok(userToUpdate);
         }
+        [HttpPost("updatesetting")]
+        public async Task<IActionResult> UpdateUserSetting([FromBody] UpdateSettingRequest request)
+        {
+            // Rasti vartotoją pagal ID
+            var user = await _context.Users.FindAsync(request.UserId);
+            if (user == null)
+            {
+                return NotFound();
+            }
+
+            // Atnaujinti atitinkamą lauką
+            switch (request.SettingType)
+            {
+                case "CardColor":
+                    user.SelectedCardColor = request.Value;
+                    break;
+                case "TableColor":
+                    user.SelectedTableColor = request.Value;
+                    break;
+                case "AvatarUrl": // Jei norite naudoti ir avataro atnaujinimui
+                    user.AvatarUrl = request.Value;
+                    break;
+                default:
+                    return BadRequest("Neteisingas nustatymų tipas.");
+            }
+
+            await _context.SaveChangesAsync();
+            return Ok();
+        }
     }
     public class UsernameUpdateModel
     {
         public int UserId { get; set; }
         public string NewUserName { get; set; } = string.Empty;
+    }
+    // Reikalingas modelis duomenims priimti (turėtų būti CardGame.Shared)
+    public class UpdateSettingRequest
+    {
+        public int UserId { get; set; }
+        public string SettingType { get; set; }
+        public string Value { get; set; }
     }
 }

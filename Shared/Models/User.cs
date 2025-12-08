@@ -24,5 +24,7 @@ namespace CardGame.Shared.Models
         public List<int> Friends { get; set; } = new(); // saugomi draugų ID
 
         public string AvatarUrl { get; set; } = "images/default_avatar.png";
+        public string SelectedCardColor { get; set; } = "red"; // Kortų nugarėlė
+        public string SelectedTableColor { get; set; } = "#2c425a"; // Stalo fonas
     }
 }

@@ -81,44 +81,94 @@
 </div>
 
 @code {
-    private void SelectRed()
+    private async Task SaveSettingsToDb(string settingType, string value)
+    {
+        if (Session.CurrentUser == null || Session.UserId <= 0)
+        {
+            Console.WriteLine("Vartotojas neprisijungęs. Nustatymai nebus išsaugoti DB.");
+            return;
+        }
+        
+        try
+        {
+            // Šis 'payload' siųs duomenis, kad serveris žinotų, ką atnaujinti
+            var payload = new 
+            { 
+                UserId = Session.UserId, 
+                SettingType = settingType, // Pvz., "CardColor" arba "TableColor"
+                Value = value
+            };
+            
+            // Jums reikės sukurti API endpointą: api/users/updatesetting
+            var response = await Http.PostAsJsonAsync("api/users/updatesetting", payload); 
+
+            if (!response.IsSuccessStatusCode)
+            {
+                Console.WriteLine($"Klaida išsaugant {settingType} DB: " + response.StatusCode);
+            }
+            else
+            {
+                // Atnaujinam UserSession objektą su nauja reikšme
+                if (settingType == "CardColor")
+                    Session.CurrentUser.SelectedCardColor = value;
+                else if (settingType == "TableColor")
+                    Session.CurrentUser.SelectedTableColor = value;
+            }
+        }
+        catch (Exception ex)
+        {
+            Console.WriteLine($"Klaida siunčiant {settingType} atnaujinimą: " + ex.Message);
+        }
+    }
+    private async Task SelectRed()
     {
         CardSettingsService.SetCardColor("red");
+        await SaveSettingsToDb("CardColor", "red");
     }
 
-    private void SelectBlue()
+    private async Task SelectBlue()
     {
         CardSettingsService.SetCardColor("blue");
+        await SaveSettingsToDb("CardColor", "blue");
     }
     
-    private void SelectGreen()
+    private async Task SelectGreen()
     {
         CardSettingsService.SetCardColor("green");
+        await SaveSettingsToDb("CardColor", "green");
     }
-    private void SelectPink()
+    private async Task SelectPink()
     {
         CardSettingsService.SetCardColor("pink");
+        await SaveSettingsToDb("CardColor", "pink");
     }
 
-
-    private void SelectDarkBlueBg()
+    private async Task SelectDarkBlueBg()
     {
-        CardSettingsService.SetTableColor("#2c425a");
+        string color = "#2c425a";
+        CardSettingsService.SetTableColor(color);
+        await SaveSettingsToDb("TableColor", color);
     }
 
-    private void SelectGreenBg()
+    private async Task SelectGreenBg()
     {
-        CardSettingsService.SetTableColor("#134628ff"); // Standartinė kazino žalia
+        string color = "#134628ff";
+        CardSettingsService.SetTableColor(color);
+        await SaveSettingsToDb("TableColor", color);
     }
     
-    private void SelectDarkRedBg()
+    private async Task SelectDarkRedBg()
     {
-        CardSettingsService.SetTableColor("#943126"); // Tamsi burgundijos raudona
+        string color = "#943126";
+        CardSettingsService.SetTableColor(color);
+        await SaveSettingsToDb("TableColor", color);
     }
 
-    private void SelectDarkPinkBg()
+    private async Task SelectDarkPinkBg()
     {
-        CardSettingsService.SetTableColor("#5c0b45ff"); 
+        string color = "#5c0b45ff";
+        CardSettingsService.SetTableColor(color);
+        await SaveSettingsToDb("TableColor", color);
     }
 
     private async Task SelectAvatar(string url)
@@ -136,12 +186,9 @@
         // 2. Išsaugome DB: siunčiame atnaujintą vartotojo objektą ar tik URL
         try
         {
-            // Turi būti sukurtas API kontroleris (pvz., UsersController) su POST metodu
-            // kuris atnaujina tik avataro URL pagal ID.
-            
+
             var payload = new { UserId = Session.UserId, AvatarUrl = url };
             
-            // Jums reikės sukurti šį API endpointą backend'e
             var response = await Http.PostAsJsonAsync("api/users/updateavatar", payload); 
 
             if (!response.IsSuccessStatusCode)
@@ -155,14 +202,26 @@
         }
     }
     private async Task ToggleTheme()
-{
-    await ThemeService.ToggleTheme();
-}
+    {
+        await ThemeService.ToggleTheme();
+    }
 
-protected override async Task OnInitializedAsync()
-{
-    await ThemeService.InitializeAsync();
-}
+    protected override async Task OnInitializedAsync()
+    {
+        // 1. Inicializuojame temą (esamas kodas)
+        await ThemeService.InitializeAsync();
+        
+        // 2. NAUJAS KODAS: Įkeliame Kortų ir Stalo spalvas iš DB (per UserSession)
+        if (Session.CurrentUser != null)
+        {
+            // Atnaujiname CardSettingsService su DB nustatymais
+            CardSettingsService.SetCardColor(Session.CurrentUser.SelectedCardColor);
+            CardSettingsService.SetTableColor(Session.CurrentUser.SelectedTableColor);
+            
+            // Atnaujiname avataro URL, kad būtų parodytas teisingas pasirinkimas
+            Session.SetAvatar(Session.CurrentUser.AvatarUrl);
+        }
+    }
 
 }
 <style>
