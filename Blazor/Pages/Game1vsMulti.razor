@@ -10,7 +10,6 @@
 @inject HttpClient Http
 @inject UserSession UserSession
 @inject NavigationManager NavigationManager
-@inject UserSession UserSession
 @inject UserSession Session
 @inject CardSettingsService CardSettingsService
 @implements IDisposable
@@ -176,6 +175,8 @@
     private bool myTurn = false;
     private string turnText = "";
     private bool isHost => string.IsNullOrEmpty(JoinCode);
+    private List<string> finishOrder = new();
+    private bool gameOverSent = false;
     private async Task LoadOpponentAvatars(List<Player> allPlayers)
     {
         opponentAvatars.Clear();
@@ -227,7 +228,7 @@
         {
             // 1. Įkeliame Kortų Nugarėlės Spalvą
             CardSettingsService.SetCardColor(UserSession.CurrentUser.SelectedCardColor);
-            
+
             // 2. Įkeliame Stalo Fono Spalvą
             CardSettingsService.SetTableColor(UserSession.CurrentUser.SelectedTableColor);
         }
@@ -473,18 +474,24 @@
 
         if (isHost)
         {
+            // Host logika: pats pabaigia ėjimą
             game.EndTurn(false);
 
-            var attackerName = game.State.Attacker?.Name ?? "";
-            var defenderName = game.State.Defender?.Name ?? "";
+            // jei žaidėjas baigė (be kortų) – pridedame į finish order sąrašą
+            if (me.Hand.Count == 0 && !finishOrder.Contains(me.Name))
+            {
+                finishOrder.Add(me.Name);
+                Console.WriteLine($"[FINISH_ORDER] {me.Name} baigė {finishOrder.Count}-as.");
+            }
 
+            // Atnaujinam žaidimo būseną visiems
             var act = new GameAction
             {
                 Action = "ENDTURN_MULTI",
                 Data =
 {
-["attacker"] = attackerName,
-["defender"] = defenderName,
+["attacker"] = game.State.Attacker?.Name ?? "",
+["defender"] = game.State.Defender?.Name ?? "",
 ["players"] = JsonSerializer.Serialize(
 game.State.Players.ToDictionary(
 p => p.Name,
@@ -494,71 +501,20 @@ p => p.Hand ?? new List<Card>())),
 ["deckEmpty"] = (game.State.Deck?.CardsLeft ?? 0) <= 0 ? "true" : "false"
 }
             };
-
             await GameClient.SendGameActionAsync(act);
-        }
-        else
-        {
-            var force = new GameAction { Action = "FORCE_ENDTURN_MULTI" };
-            await GameClient.SendGameActionAsync(force);
-        }
 
-        // žaidimo pabaigos patikrinimas
-        // Žaidimo pabaigos patikrinimas – tik host'as siunčia
-        if (isHost && game.State.IsGameOver)
-        {
+            // --- Žaidimo pabaigos patikrinimas ---
             var stillWithCards = game.State.Players.Where(p => p.Hand.Count > 0).ToList();
-
-            List<string> losers;
-            List<string> winners;
-
-            if (stillWithCards.Count == 1)
-            {
-                losers = new List<string> { stillWithCards.First().Name };
-                winners = game.State.Players
-                .Where(p => p.Hand.Count == 0)
-                .Select(p => p.Name)
-                .ToList();
-            }
-            else
-            {
-                losers = stillWithCards.Select(p => p.Name).ToList();
-                winners = game.State.Players
-                .Where(p => p.Hand.Count == 0)
-                .Select(p => p.Name)
-                .ToList();
-            }
-
-            var over = new GameAction
-            {
-                Action = "GAME_OVER",
-                Data =
-{
-["winners"] = JsonSerializer.Serialize(winners),
-["losers"] = JsonSerializer.Serialize(losers),
-["players"] = JsonSerializer.Serialize(
-game.State.Players.ToDictionary(p => p.Name, p => p.Hand ?? new List<Card>()))
-}
-            };
-
-            Console.WriteLine("[HOST] Žaidimas baigtas. Siunčiam GAME_OVER visiems klientams.");
-
-            await GameClient.SendGameActionAsync(over);
-
-            // Šitas būtinas – kad host’ui irgi parodytų „GameOver“ ekraną
-            await RefreshUI(winners, losers);
-
-            return; // išėjimas iš metodo, kad nereiktų dar kartą daryti StateHasChanged
-        }
-        // --- Naujas papildomas patikrinimas po kiekvieno ėjimo ---
-        if (isHost)
-        {
-            // Patikrinam, ar po šio ėjimo neliko aktyvių žaidėjų su kortomis
-            if (game.State.Players.Count(p => p.Hand.Count > 0) <= 1)
+            if (game.State.IsGameOver || stillWithCards.Count <= 1)
             {
                 game.State.IsGameOver = true;
 
-                var stillWithCards = game.State.Players.Where(p => p.Hand.Count > 0).ToList();
+                // Prieš siųsdami – sutvarkome finishOrder
+                foreach (var p in game.State.Players.Where(p => p.Hand.Count == 0))
+                {
+                    if (!finishOrder.Contains(p.Name))
+                        finishOrder.Add(p.Name);
+                }
 
                 List<string> losers;
                 List<string> winners;
@@ -587,28 +543,49 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand ?? new List<Card>()))
 {
 ["winners"] = JsonSerializer.Serialize(winners),
 ["losers"] = JsonSerializer.Serialize(losers),
-["players"] = JsonSerializer.Serialize(
+["finishOrder"] = JsonSerializer.Serialize(
+game.State.Players
+.OrderBy(p => p.Hand.Count) // mažiau kortų = aukštesnė vieta
+.ThenBy(p => finishOrder.IndexOf(p.Name) == -1 ? int.MaxValue : finishOrder.IndexOf(p.Name))
+.Select(p => p.Name)
+.ToList()
+),["players"] = JsonSerializer.Serialize(
 game.State.Players.ToDictionary(p => p.Name, p => p.Hand ?? new List<Card>()))
 }
                 };
 
-                await GameClient.SendGameActionAsync(over);
-                await RefreshUI(winners, losers);
+                Console.WriteLine("[HOST] Žaidimas baigtas. Siunčiam GAME_OVER visiems klientams.");
+                if (!gameOverSent)
+                {
+                    gameOverSent = true;
+                    Console.WriteLine("[AUTO-END] Siunčiam GAME_OVER po ENDTURN/PICKUP");
+                    await GameClient.SendGameActionAsync(over);
+
+                }
+
+                // NEBEKVIEČIAM RefreshUI – tai padarys GAME_OVER case’as visiems
                 return;
             }
         }
+        else
+        {
+            // Guest logika: praneša hostui, kad jis baigė ėjimą
+            var force = new GameAction { Action = "FORCE_ENDTURN_MULTI" };
+            await GameClient.SendGameActionAsync(force);
+        }
 
+        // Įrašome į istoriją
         UserSession.AddGameHistoryEntry(
         turnNumber: game.State.TurnNumber,
         player: me!.Name,
         action: "ENDTURN"
         );
 
-
         myTurn = false;
         UpdateTurnText();
         await InvokeAsync(StateHasChanged);
     }
+
 
     private async Task PickUpCards()
     {
@@ -627,7 +604,12 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand ?? new List<Card>()))
 
             game.State.TableCards.Clear();
             game.EndTurn(true);
-
+            // jei žaidėjas baigė (be kortų) – pridedame į finish order sąrašą
+            if (me != null && me.Hand.Count == 0 && !finishOrder.Contains(me.Name))
+            {
+                finishOrder.Add(me.Name);
+                Console.WriteLine($"[FINISH_ORDER] {me.Name} baigė {finishOrder.Count}-as.");
+            }
             var act = new GameAction
             {
                 Action = "PICKUP_MULTI",
@@ -752,6 +734,51 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand))
 
                     game.State.TableCards.Clear();
                     myTurn = (game.State.Attacker == me);
+
+                    // --- Patikrinam ar žaidimas baigtas ---
+                    if (isHost && game != null)
+                    {
+                        var stillWithCards = game.State.Players.Where(p => p.Hand.Count > 0).ToList();
+                        if (stillWithCards.Count <= 1)
+                        {
+                            game.State.IsGameOver = true;
+                            var losers = stillWithCards.Select(p => p.Name).ToList();
+                            var winners = game.State.Players.Where(p => p.Hand.Count == 0).Select(p => p.Name).ToList();
+
+                            foreach (var p in game.State.Players.Where(p => p.Hand.Count == 0))
+                            {
+                                if (!finishOrder.Contains(p.Name))
+                                    finishOrder.Add(p.Name);
+                            }
+
+                            var over = new GameAction
+                            {
+                                Action = "GAME_OVER",
+                                Data =
+{
+["winners"] = JsonSerializer.Serialize(winners),
+["losers"] = JsonSerializer.Serialize(losers),
+["finishOrder"] = JsonSerializer.Serialize(
+game.State.Players
+.OrderBy(p => p.Hand.Count) // mažiau kortų = aukštesnė vieta
+.ThenBy(p => finishOrder.IndexOf(p.Name) == -1 ? int.MaxValue : finishOrder.IndexOf(p.Name))
+.Select(p => p.Name)
+.ToList()
+), ["players"] = JsonSerializer.Serialize(
+game.State.Players.ToDictionary(p => p.Name, p => p.Hand ?? new List<Card>()))
+}
+                            };
+
+                            Console.WriteLine("[AUTO-END] Siunčiam GAME_OVER po ENDTURN/PICKUP");
+                            if (!gameOverSent)
+                            {
+                                gameOverSent = true;
+                                Console.WriteLine("[AUTO-END] Siunčiam GAME_OVER po ENDTURN/PICKUP");
+                                await GameClient.SendGameActionAsync(over);
+                            }
+                        }
+                    }
+
                     break;
                 }
 
@@ -761,6 +788,8 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand))
                     if (!isHost || game == null) break;
 
                     var defender = game.State.Defender;
+
+                    // Defender pasiima visas kortas nuo stalo
                     foreach (var pair in game.State.TableCards)
                     {
                         defender.Hand.Add(pair.Key);
@@ -771,10 +800,22 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand))
                     game.State.TableCards.Clear();
                     game.EndTurn(true);
 
-                    // praleidžiam visus, kurie jau baigė
-                    var activePlayers = game.State.Players
-                    .Where(p => p.Hand.Count > 0)
-                    .ToList();
+                    // Jei žaidėjas (defender) baigė be kortų — pridedame į finish order sąrašą
+                    if (defender.Hand.Count == 0 && !finishOrder.Contains(defender.Name))
+                    {
+                        finishOrder.Add(defender.Name);
+                        Console.WriteLine($"[FINISH_ORDER] {defender.Name} baigė {finishOrder.Count}-as (per FORCE_PICKUP).");
+                    }
+
+                    // Papildomai – užtikrinam, kad visi be kortų būtų įtraukti
+                    foreach (var p in game.State.Players.Where(p => p.Hand.Count == 0))
+                    {
+                        if (!finishOrder.Contains(p.Name))
+                            finishOrder.Add(p.Name);
+                    }
+
+                    // Surandam aktyvius žaidėjus
+                    var activePlayers = game.State.Players.Where(p => p.Hand.Count > 0).ToList();
 
                     if (activePlayers.Count > 1)
                     {
@@ -798,7 +839,7 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand))
                         game.State.IsGameOver = true;
                     }
 
-
+                    // Atnaujinam visiems būseną
                     var act = new GameAction
                     {
                         Action = "PICKUP_MULTI",
@@ -810,10 +851,9 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand))
 game.State.Players.ToDictionary(p => p.Name, p => p.Hand))
 }
                     };
-
                     await GameClient.SendGameActionAsync(act);
 
-                    // naujas papildomas pranešimas apie naują eilę
+                    // Naujas turn nustatymas
                     var turn = new GameAction
                     {
                         Action = "SETTURN_MULTI",
@@ -824,12 +864,20 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand))
 }
                     };
                     await GameClient.SendGameActionAsync(turn);
+
+                    // --- Patikrinam, ar žaidimas baigtas ---
                     if (game.State.IsGameOver)
                     {
-                        // Tikrinam kas liko su kortomis
                         var stillWithCards = game.State.Players.Where(p => p.Hand.Count > 0).ToList();
 
-                        // Jei liko tik vienas žaidėjas su kortomis, tai jis – pralaimėtojas
+                        // Užtikrinam, kad finishOrder būtų pilnas
+                        foreach (var p in game.State.Players.Where(p => p.Hand.Count == 0))
+                        {
+                            if (!finishOrder.Contains(p.Name))
+                                finishOrder.Add(p.Name);
+                        }
+
+                        // Skaičiuojam nugalėtojus ir pralaimėtojus
                         List<string> losers;
                         List<string> winners;
 
@@ -843,7 +891,6 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand))
                         }
                         else
                         {
-                            // jei kažkas neįprasto – visi kiti su kortom laikomi pralaimėję (apsauginis atvejis)
                             losers = stillWithCards.Select(p => p.Name).ToList();
                             winners = game.State.Players
                             .Where(p => p.Hand.Count == 0)
@@ -858,18 +905,28 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand))
 {
 ["winners"] = JsonSerializer.Serialize(winners),
 ["losers"] = JsonSerializer.Serialize(losers),
-["players"] = JsonSerializer.Serialize(
+["finishOrder"] = JsonSerializer.Serialize(
+game.State.Players
+.OrderBy(p => p.Hand.Count) // mažiau kortų = aukštesnė vieta
+.ThenBy(p => finishOrder.IndexOf(p.Name) == -1 ? int.MaxValue : finishOrder.IndexOf(p.Name))
+.Select(p => p.Name)
+.ToList()
+),["players"] = JsonSerializer.Serialize(
 game.State.Players.ToDictionary(p => p.Name, p => p.Hand ?? new List<Card>()))
 }
                         };
 
-                        await GameClient.SendGameActionAsync(over);
-                        await RefreshUI(winners, losers);
+                        if (!gameOverSent)
+                        {
+                            gameOverSent = true;
+                            Console.WriteLine("[AUTO-END] Siunčiam GAME_OVER po ENDTURN/PICKUP");
+                            await GameClient.SendGameActionAsync(over);
+                        }
+                        Console.WriteLine("[FORCE_PICKUP_MULTI] GAME_OVER išsiųstas su finishOrder: " + string.Join(", ", finishOrder));
                     }
 
                     break;
                 }
-
 
             // --- Baigti ėjimą (force) ---
             case "FORCE_ENDTURN_MULTI":
@@ -877,7 +934,12 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand ?? new List<Card>()))
                     if (!isHost || game == null) break;
 
                     game.EndTurn(false);
-
+                    // jei žaidėjas baigė (be kortų) – pridedame į finish order sąrašą
+                    if (me != null && me.Hand.Count == 0 && !finishOrder.Contains(me.Name))
+                    {
+                        finishOrder.Add(me.Name);
+                        Console.WriteLine($"[FINISH_ORDER] {me.Name} baigė {finishOrder.Count}-as.");
+                    }
                     var deckCount = game.State.Deck?.CardsLeft ?? 0;
                     var trumpCard = game.State.Deck?.TrumpCard;
 
@@ -903,12 +965,13 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand)),
             // --- Žaidimo pabaiga ---
             case "GAME_OVER":
                 {
+                    if (gameOverSent && !isHost) return; // host'ui leidžiam vis tiek pereiti
+                    gameOverSent = true;
+
                     Console.WriteLine("[GAME_OVER] Gauta žaidimo pabaiga iš serverio");
 
-                    // jei žaidimo nėra, sukurk tuščią variklį (kad UI nesugriūtų)
                     if (game == null)
                         game = new DurakGameEngine(new List<Player>());
-                        
 
                     game.State.IsGameOver = true;
 
@@ -921,39 +984,22 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand)),
                     if (action.Data.TryGetValue("losers", out var losersJson))
                         losers = JsonSerializer.Deserialize<List<string>>(losersJson);
 
-                    // Atnaujinam žaidėjų būsenas jei yra
-                    if (action.Data.TryGetValue("players", out var playersJson))
-                    {
-                        try
-                        {
-                            var playersData = JsonSerializer.Deserialize<Dictionary<string, List<Card>>>(playersJson)!;
-                            foreach (var kv in playersData)
-                            {
-                                var pl = game.State.Players.FirstOrDefault(p => p.Name == kv.Key);
-                                if (pl != null)
-                                    pl.Hand = kv.Value;
-                            }
-                        }
-                        catch (Exception ex)
-                        {
-                            Console.WriteLine($"[GAME_OVER] Klaida deserializuojant players: {ex.Message}");
-                        }
-                    }
+                    List<string>? finishOrderReceived = null;
+                    if (action.Data.TryGetValue("finishOrder", out var orderJson))
+                        finishOrderReceived = JsonSerializer.Deserialize<List<string>>(orderJson);
 
-                    // priverstinai sustabdyti eiles tekstą
+
+                    // --- Host'ui rodom pranešimą ---
+                    turnText = isHost ? "Game over!" : turnText;
                     myTurn = false;
-                    turnText = "Žaidimas baigtas!";
 
-                    // kad net jei kažkas nesinchronizavo, UI vis tiek parodytų pabaigą
-                    if (!statsSent)
-                    {
-                        statsSent = true;
-                        await RefreshUI(winners, losers);
-                    }
+                    // visi gauna RefreshUI, bet tik host siuncia XP ir naviguoja
+                    await RefreshUI(winners, losers, finishOrderReceived);
 
                     await InvokeAsync(StateHasChanged);
                     break;
                 }
+
 
 
         }
@@ -1015,10 +1061,11 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand)),
         //Jei žaidimas baigtas – rodom visiems tą pačią žinutę ir nieko nekeičiame
         if (game.State.IsGameOver)
         {
-            turnText = "Žaidimas baigtas!";
+            turnText = "Game over!";
             myTurn = false;
             return;
         }
+
 
         // Toliau – įprastas tekstas tik jei dar žaidimas vyksta
         turnText = game.GetTurnText(me);
@@ -1032,73 +1079,60 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand)),
             }
 
             myTurn = false;
-            turnText = "Baigei žaidimą ir stebi eigą.";
+            turnText = "Finished and spectating.";
             return;
         }
     }
-    private bool statsSent = false;
 
-    private async Task RefreshUI(List<string>? winners = null, List<string>? losers = null)
+
+    private async Task RefreshUI(List<string>? winners = null, List<string>? losers = null, List<string>? finishOrder =
+    null)
     {
-        if (!statsSent)
+        bool playerWon = winners?.Contains(me!.Name) == true;
+        var result = playerWon ? "winner" : "loser";
+
+        Console.WriteLine($"[REFRESHUI] Game over. PlayerWon: {playerWon}, Me: {me!.Name}");
+
+        if (UserSession.UserId > 0)
         {
-            statsSent = true;
+            HttpResponseMessage response;
 
-            bool playerWon = winners?.Contains(me!.Name) == true;
-            var result = playerWon ? "winner" : "loser";
-
-            Console.WriteLine($"Game over. PlayerWon: {playerWon}");
-
-            if (UserSession.UserId > 0)
+            if (playerWon)
             {
-                HttpResponseMessage response;
-                if (playerWon)
+                int position = 0;
+                if (finishOrder != null && finishOrder.Contains(me.Name))
+                    position = finishOrder.IndexOf(me.Name) + 1;
+
+                int xp = position switch
                 {
+                    1 => 200,
+                    2 => 150,
+                    3 => 100,
+                    _ => 50
+                };
 
-                    int position = 0;
-
-                    if (winners != null && winners.Contains(me!.Name))
-                    {
-                        position = winners.IndexOf(me.Name) + 1;
-                    }
-                    // 1 vieta = 1, 2 vieta = 2 ir t.t.
-                    int xp = position switch
-                    {
-                        1 => 200, // 1 vieta
-                        2 => 150, // 2 vieta
-                        3 => 100, // 3 vieta
-                        _ => 50
-                    };
-
-                    response = await Http.PostAsync($"api/stats/win/{UserSession.UserId}", null);
-                    await Http.PostAsync($"api/users/addxp/{UserSession.UserId}/{xp}", null);
-
-                    Console.WriteLine($"POST win status: {response.StatusCode}");
-                }
-                else
-                {
-                    response = await Http.PostAsync($"api/stats/loss/{UserSession.UserId}", null);
-                    Console.WriteLine($"POST loss status: {response.StatusCode}");
-                }
-                var refreshedUser = await Http.GetFromJsonAsync<User>($"api/users/{UserSession.UserId}");
-                if (refreshedUser != null)
-                {
-                    UserSession.SetUser(refreshedUser);
-                    Console.WriteLine($"Updated Wins: {refreshedUser.Wins}, Losses: {refreshedUser.Losses}, XP: {refreshedUser.ExperiencePoints}, Level: {refreshedUser.Level}");
-                }
- await InvokeAsync(() =>
+                response = await Http.PostAsync($"api/stats/win/{UserSession.UserId}", null);
+                await Http.PostAsync($"api/users/addxp/{UserSession.UserId}/{xp}", null);
+                Console.WriteLine($"[REFRESHUI] {me.Name} +{xp} XP, POST win status: {response.StatusCode}");
+            }
+            else
             {
-                NavigationManager.NavigateTo($"/gameover/{result}", forceLoad: true);
-            });
+                response = await Http.PostAsync($"api/stats/loss/{UserSession.UserId}", null);
+                Console.WriteLine($"[REFRESHUI] {me.Name} loss POST status: {response.StatusCode}");
             }
 
-            NavigationManager.NavigateTo($"/gameover/{result}");
-            await InvokeAsync(StateHasChanged);
-            return;
+            var refreshedUser = await Http.GetFromJsonAsync<User>($"api/users/{UserSession.UserId}");
+            if (refreshedUser != null)
+            {
+                UserSession.SetUser(refreshedUser);
+                Console.WriteLine($"[REFRESHUI] Updated user {refreshedUser.UserName}: XP={refreshedUser.ExperiencePoints}, Wins={refreshedUser.Wins}, Losses={refreshedUser.Losses}");
+            }
         }
 
+        NavigationManager.NavigateTo($"/gameover/{result}");
         await InvokeAsync(StateHasChanged);
     }
+
 
     private Random rnd = new();
     private string GenerateRoomCode(int length = 6)

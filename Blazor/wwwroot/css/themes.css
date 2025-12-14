@@ -1,5 +1,5 @@
 /* Šviesi tema */
-:root {
+[data-theme="light"] {
     --bg-color: #b8c9df;
     --text-color: #1c2d3e;
     --container-bg: #acc1db;
@@ -21,7 +21,6 @@
 
     --card-bg: #ffffff;
     --hover-bg: #f0f0f0;
-    --card-red: #d62828;
 }
 
 /* Tamsi tema */
@@ -47,7 +46,6 @@
 
     --card-bg: #2c425a;
     --hover-bg: #3a5678;
-    --card-red: #ff4f4f;
 }
 
 /* Bendri stiliai */

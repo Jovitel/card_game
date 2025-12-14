@@ -112,8 +112,11 @@ namespace CardGame.Api.Hubs
         // ŽAIDIMO VEIKSMAI
         public async Task SendGameAction(string roomCode, string actionJson)
         {
-            // Persiunčiame žaidimo veiksmą visiems žaidėjams tame kambaryje
-            await Clients.Group(roomCode).SendAsync("ReceiveGameAction", actionJson);
+           // Transliuojame visiems, įskaitant siuntėją
+    await Clients.Group(roomCode).SendAsync("ReceiveGameAction", actionJson);
+    if (actionJson.Contains("GAME_OVER"))
+    Console.WriteLine($"[HUB] GameAction transliuotas (GAME_OVER) grupei {roomCode}");
+
         }
 
         // ŽAIDĖJO ATSIJUNGIMAS
