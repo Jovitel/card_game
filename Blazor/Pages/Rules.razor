@@ -31,7 +31,7 @@
             <ul>
                 <li class="club" data-suit="♣"><strong>Points</strong>: Earned from games you play and win.</li>
                 <li class="diamond" data-suit="♦"><strong>Level</strong>: Your progression in the game.</li>
-                <li class="spade" data-suit="♠"><strong>Settings</strong>: Adjust preferences like sound, notifications, and account info.</li>
+                <li class="spade" data-suit="♠"><strong>Settings</strong>: Adjust preferences like card and table colors, theme.</li>
                 <li class="heart" data-suit="♥"><strong>Leaderboards</strong>: See how you rank against other players.</li>
                 <li class="club" data-suit="♣"><strong>Friends List</strong>: Add and manage friends to play with.</li>
             </ul>
@@ -45,26 +45,25 @@
             
             <ul>
                 <li class="diamond" data-suit="♦"><strong>1 vs 1</strong>: Play against another player.</li>
-                <li class="spade" data-suit="♠"><strong>1 vs Bot</strong>: Play against the computer.</li>
+                <li class="spade" data-suit="♠"><strong>1 vs Bot</strong>: Play against a computer.</li>
                 <li class="heart" data-suit="♥"><strong>1 vs Multiplayer</strong>: Host a game with multiple human players.</li>
-                <li class="club" data-suit="♣"><strong>1 vs Multi Bots</strong>: Play against several computer opponents.</li>
             </ul>
             <p>If you choose to start a multiplayer game:</p>
 
             <ul> 
-                <li class="diamond" data-suit="♦">You will be given a <strong>Game Code</strong>.</li> 
-                <li class="spade" data-suit="♠">Share this code with friends so they can join from the <strong>Join Game</strong> page.</li> 
-                <li class="heart" data-suit="♥">You will see how many players have joined in real time.</li> 
-                <li class="club" data-suit="♣">Once everyone is ready, click <strong>Start Game</strong> to begin.</li> 
+                <li class="diamond" data-suit="♣">You will be given a <strong>Game Code</strong>.</li> 
+                <li class="spade" data-suit="♦">Share this code with friends so they can join from the <strong>Join Game</strong> page.</li> 
+                <li class="heart" data-suit="♠">You will see if enough players have joined.</li> 
+                <li class="club" data-suit="♥">Once everyone is ready, click <strong>Start Game</strong> to begin.</li> 
             </ul>
         </div>
 
         <div class="rules-square">
             <h2><strong>Joining a Game</strong></h2>
             <ul>
-                <li class="diamond" data-suit="♦">Go to the <strong>Join Game</strong> page.</li>
-                <li class="spade" data-suit="♠">Enter the <strong>Game Code</strong> your friend shared with you.</li>
-                <li class="heart" data-suit="♥">Wait until the host starts the game.</li>
+                <li class="diamond" data-suit="♣">Go to the <strong>Join Game</strong> page.</li>
+                <li class="spade" data-suit="♦">Enter the <strong>Game Code</strong> your friend shared with you.</li>
+                <li class="heart" data-suit="♠">Wait until the host starts the game.</li>
             </ul>
         </div>
 
@@ -75,38 +74,46 @@
             <h3>Basics</h3>
 
             <ul>
-                <li class="club" data-suit="♣">A standard 52-card deck is used (2 through Ace).</li>
-                <li class="diamond" data-suit="♦">The <strong>trump suit</strong> is chosen at the start of the game by revealing one card from the deck.</li>
+                <li class="club" data-suit="♥">A standard 52-card deck is used (2 through Ace).</li>
+                <li class="diamond" data-suit="♣">The <strong>trump suit</strong> is chosen at the start of the game by revealing one card from the deck.</li>
             </ul>
 
             <h3>Attacking &amp; Defending</h3>
             <ul>
-                <li class="spade" data-suit="♠">The <strong>attacker</strong> plays one or more cards of the same rank.</li>
-                <li class="heart" data-suit="♥">The <strong>defender</strong> must beat each card using a higher card of the same suit or any trump card. </li>
-                <li class="club" data-suit="♣">If the defender cannot beat all cards, they must <strong>pick up</strong> the played cards.</li>
+                <li class="spade" data-suit="♦">The <strong>attacker</strong> plays one or more cards of the same rank.</li>
+                <li class="heart" data-suit="♠">The <strong>defender</strong> must beat each card using a higher card of the same suit or any trump card. </li>
+                <li class="club" data-suit="♥">If the defender cannot beat all cards, they must <strong>pick up</strong> the played cards.</li>
             </ul>
 
             <h3>Passing</h3>
             <ul>
-                <li class="diamond" data-suit="♦">If the defender beats the cards, the turn may continue: other players (or the attacker) can add more cards of the same rank as already played cards. The defender must beat them too.</li>
-                <li class="spade" data-suit="♠">When the defender succeeds in beating all cards, the discarded cards are removed from the game.</li>
+                <li class="diamond" data-suit="♣">If the defender beats the cards, the turn may continue: other players (or the attacker) can add more cards of the same rank as already played cards. The defender must beat them too.</li>
+                <li class="spade" data-suit="♦">When the defender succeeds in beating all cards, the discarded cards are removed from the game.</li>
             </ul>
 
             <h3>Objective</h3>
             <ul>
-                <li class="heart" data-suit="♥">Players draw cards from the deck until it is empty.</li>
-                <li class="club" data-suit="♣">The game continues until one player is left holding cards.</li>
-                <li class="diamond" data-suit="♦">That player is the <strong>Durak</strong> ("the fool").</li>
+                <li class="heart" data-suit="♠">Players draw cards from the deck until it is empty.</li>
+                <li class="club" data-suit="♥">The game continues until one player is left holding cards.</li>
+                <li class="diamond" data-suit="♣">That player is the <strong>Durak</strong> ("the fool").</li>
             </ul>
+
+<h3>Points</h3>
+            <ul>
+                <li class="heart" data-suit="♦">50xp for winning in a 1vsbot game.</li>
+                <li class="club" data-suit="♠"> 100xp for winning in a 1vs1 game.</li>
+                <li class="diamond" data-suit="♥">200xp (1st place), 150xp(2nd place), 100xp(3rd place) for winning in a 1vsMulti game.</li>
+            </ul>
+            
 
         </div>
 
         <div class="rules-square">
             <h2><strong>Tips for New Players</strong></h2>
             <ul>
-                <li class="spade" data-suit="♠">Watch your trump cards carefully as they are your strongest defense.</li>
-                <li class="heart" data-suit="♥">Do not waste high cards too early unless necessary.</li>
-                <li class="club" data-suit="♣">Use the friend system to play with people you know.</li>
+                <li class="spade" data-suit="♣">Watch your trump cards carefully as they are your strongest defense.</li>
+                <li class="heart" data-suit="♦">Do not waste high cards too early unless necessary.</li>
+                <li class="club" data-suit="♠">Use the friend system to play with people you know.</li>
             </ul>
         </div>
     </div>
@@ -213,11 +220,11 @@
 
 .spade::before,
 .club::before {
-    color: var(--card-black);
+    color: black;
 }
 
 .heart::before,
 .diamond::before {
-    color: var(--card-red);
+    color:  #d62828;
 }
 </style>

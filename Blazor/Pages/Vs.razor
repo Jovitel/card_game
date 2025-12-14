@@ -11,20 +11,17 @@
         <div class="cards-row">
             <NavLink class="card-btn" href="/game/1vs1">
                 <span class="card-rank">1 vs 1</span>
-                <span class="card-suit">♠</span>
+                <span class="card-suit-black">♠</span>
             </NavLink>
             <NavLink class="card-btn" href="/game/1vsmulti">
                 <span class="card-rank">1 vs Multi</span>
-                <span class="card-suit">♥</span>
+                <span class="card-suit-red">♥</span>
             </NavLink>
             <NavLink class="card-btn" href="/game/1vsbot">
                 <span class="card-rank">1 vs Bot</span>
-                <span class="card-suit">♦</span>
+                <span class="card-suit-black">♣</span>
             </NavLink>
-            <NavLink class="card-btn" href="/game/1vsmultibots">
-                <span class="card-rank">1 vs Multi Bot</span>
-                <span class="card-suit">♣</span>
-            </NavLink>
+          
         </div>
 
         <div class="exit-wrapper">
@@ -135,15 +132,17 @@
     margin-bottom: 10px;
 }
 
-.card-suit {
+.card-suit-black {
     font-size: 80px;
-    color: var(--text-color);
+    color: black;
+}
+.card-suit-red {
+    font-size: 80px;
+    color:  #d62828;
 }
 
-/* Raudonos kortos */
-.card-btn.red .card-suit {
-    color: var(--card-red);
-}
+
+
 
 /* Apatinė sekcija su išeities mygtuku */
 .exit-wrapper {

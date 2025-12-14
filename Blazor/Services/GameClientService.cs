@@ -9,7 +9,7 @@ namespace card_game.Services
         public string Action { get; set; } = "";                  // Pvz.: "INIT", "ATTACK", "DEFEND", "ENDTURN"
         public Dictionary<string, string> Data { get; set; } = new(); // Dinamiškas duomenų rinkinys
     }
-    
+
     public class GameClientService
     {
         private HubConnection? _hubConnection; // SignalR jungtis su serveriu
@@ -83,7 +83,7 @@ namespace card_game.Services
             {
                 ConnectedPlayers = players;
                 OnReadyToStart?.Invoke(players);
-                Console.WriteLine("Galima pradėti žaidimą – prisijungę: " + string.Join(", ", players));
+                Console.WriteLine("Galima pradėti žaidimą, prisijungę: " + string.Join(", ", players));
             });
 
             // Kai žaidėjas išeina iš kambario
@@ -137,25 +137,25 @@ namespace card_game.Services
             // Prisijungiame prie serverio
             await _hubConnection.StartAsync();
             Console.WriteLine($"Prisijungta prie SignalR kaip {MyName}");
-        _hubConnection.On<string>("ReceiveChatHistory", (json) =>
-        {
-            try
+            _hubConnection.On<string>("ReceiveChatHistory", (json) =>
             {
-                var history = System.Text.Json.JsonSerializer.Deserialize<List<ChatMessage>>(json);
-                if (history != null)
+                try
                 {
-                    // Pirmiausia išvalome esamas žinutes (nors tai jau turėtų būti padaryta Connect/Join/Create)
-                    Messages.Clear(); 
-                    Messages.AddRange(history); // Pridedame visą istoriją
-                    
-                    OnChatHistoryReceived?.Invoke(history); // Iššaukiame įvykį UI atnaujinti
+                    var history = System.Text.Json.JsonSerializer.Deserialize<List<ChatMessage>>(json);
+                    if (history != null)
+                    {
+                        // Pirmiausia išvalome esamas žinutes (nors tai jau turėtų būti padaryta Connect/Join/Create)
+                        Messages.Clear();
+                        Messages.AddRange(history); // Pridedame visą istoriją
+
+                        OnChatHistoryReceived?.Invoke(history); // Iššaukiame įvykį UI atnaujinti
+                    }
                 }
-            }
-            catch (Exception ex)
-            {
-                Console.WriteLine($"Klaida apdorojant Chat History JSON: {ex.Message}");
-            }
-        });
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Klaida apdorojant Chat History JSON: {ex.Message}");
+                }
+            });
         }
         // Kambario valdymas 
 
@@ -194,45 +194,52 @@ namespace card_game.Services
             }
 
             string json = JsonSerializer.Serialize(action);
+            Console.WriteLine($"[CLIENT] Siunčiam GameAction į serverį: {action.Action}");
+
+            // Siunčiam į Hub
             await _hubConnection!.SendAsync("SendGameAction", _roomCode, json);
+
+            // Iškart apdorojam lokaliai (kad host'as gautų tą patį kaip guest'ai)
+            OnGameActionReceived?.Invoke(action);
         }
 
+
         // Atsijungia nuo serverio (naudinga kai išeinama iš žaidimo)
-       public async Task DisconnectAsync()
-{
-    if (_hubConnection is not null)
-    {
-       try
-{
-    if (_hubConnection is not null)
-    {
-        await _hubConnection.StopAsync();
-        await _hubConnection.DisposeAsync();
-        Console.WriteLine("Atsijungta ir SignalR jungtis išvalyta.");
-    }
-}
-catch (Exception ex)
-{
-    Console.WriteLine($"Klaida atsijungiant nuo SignalR: {ex.Message}");
-}
-finally
-{
-    _hubConnection = null;
-    _roomCode = null;
-    ConnectedPlayers.Clear();
+        public async Task DisconnectAsync()
+        {
+            if (_hubConnection is not null)
+            {
+                try
+                {
+                    if (_hubConnection is not null)
+                    {
+                        await _hubConnection.StopAsync();
+                        await _hubConnection.DisposeAsync();
+                        Console.WriteLine("Atsijungta ir SignalR jungtis išvalyta.");
+                    }
+                }
+                catch (Exception ex)
+                {
+                    Console.WriteLine($"Klaida atsijungiant nuo SignalR: {ex.Message}");
+                }
+                finally
+                {
+                    _hubConnection = null;
+                    _roomCode = null;
+                    ConnectedPlayers.Clear();
 
-    // išvalom visus eventus (kad tarp žaidimų neliktų)
-    OnStartGame = null;
-    OnRoomCreated = null;
-    OnPlayerJoined = null;
-    OnPlayerLeft = null;
-    OnErrorReceived = null;
-    OnGameActionReceived = null;
-    OnReadyToStart = null;
-}
+                    // išvalom visus eventus (kad tarp žaidimų neliktų)
+                    OnStartGame = null;
+                    OnRoomCreated = null;
+                    OnPlayerJoined = null;
+                    OnPlayerLeft = null;
+                    OnErrorReceived = null;
+                    OnGameActionReceived = null;
+                    OnReadyToStart = null;
+                }
 
-    }
-}
+            }
+        }
 
         // Siunčia prašymą serveriui, kad gynėjas paėmė kortas (multiplayer režimas)
         public async Task RequestPickUpAsync()
@@ -262,7 +269,7 @@ finally
                 Console.WriteLine("Neprisijungta prie hub'o arba nėra kambario kodo.");
                 return;
             }
-            
+
             // Sukuriame siunčiamą žinutę
             var chatMessage = new ChatMessage
             {
@@ -274,10 +281,10 @@ finally
             // Ją serializuojame ir siunčiame per SignalR Hub'ą
             string json = JsonSerializer.Serialize(chatMessage);
             await _hubConnection.SendAsync("SendChatMessage", _roomCode, json);
-            
+
             // Iškart pridedame žinutę į savo sąrašą 
             Messages.Add(chatMessage);
-            
+
             // Reikėtų informuoti UI, kad buvo pridėta žinutė (jei nenorite laukti SignalR)
             // OnMessageReceived?.Invoke(chatMessage); // Galima iškviesti papildomą UI atnaujinimą
         }

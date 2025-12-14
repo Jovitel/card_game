@@ -5,6 +5,7 @@
 @inject NavigationManager Nav
 @inject HttpClient Http
 @inject UserSession UserSession
+@inject ThemeService ThemeService
 
 
 @code {
@@ -35,7 +36,9 @@
             if (user != null)
             {
                 UserSession.SetUser(user!); // Naudojame '!' operatorių
+                await ThemeService.InitializeAsync();
                 Nav.NavigateTo("/start");
+                
             }
             else
             {
