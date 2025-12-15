@@ -177,6 +177,7 @@
     private bool isHost => string.IsNullOrEmpty(JoinCode);
     private List<string> finishOrder = new();
     private bool gameOverSent = false;
+    private bool statsSent = false;
     private async Task LoadOpponentAvatars(List<Player> allPlayers)
     {
         opponentAvatars.Clear();
@@ -503,7 +504,7 @@ p => p.Hand ?? new List<Card>())),
             };
             await GameClient.SendGameActionAsync(act);
 
-            // --- Žaidimo pabaigos patikrinimas ---
+            //   Žaidimo pabaigos patikrinimas  
             var stillWithCards = game.State.Players.Where(p => p.Hand.Count > 0).ToList();
             if (game.State.IsGameOver || stillWithCards.Count <= 1)
             {
@@ -671,7 +672,7 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand))
                 await HandleRemoteDefend(action);
                 break;
 
-            // --- ENDTURN / PICKUP bendras apdorojimas ---
+            //   ENDTURN / PICKUP bendras apdorojimas  
             case "ENDTURN_MULTI":
             case "PICKUP_MULTI":
                 {
@@ -735,7 +736,7 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand))
                     game.State.TableCards.Clear();
                     myTurn = (game.State.Attacker == me);
 
-                    // --- Patikrinam ar žaidimas baigtas ---
+                    //   Patikrinam ar žaidimas baigtas  
                     if (isHost && game != null)
                     {
                         var stillWithCards = game.State.Players.Where(p => p.Hand.Count > 0).ToList();
@@ -782,7 +783,7 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand ?? new List<Card>()))
                     break;
                 }
 
-            // --- Gynėjo paėmimas (force) ---
+            // Gynėjo paėmimas (force) 
             case "FORCE_PICKUP_MULTI":
                 {
                     if (!isHost || game == null) break;
@@ -865,7 +866,7 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand))
                     };
                     await GameClient.SendGameActionAsync(turn);
 
-                    // --- Patikrinam, ar žaidimas baigtas ---
+                    //   Patikrinam, ar žaidimas baigtas  
                     if (game.State.IsGameOver)
                     {
                         var stillWithCards = game.State.Players.Where(p => p.Hand.Count > 0).ToList();
@@ -928,7 +929,7 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand ?? new List<Card>()))
                     break;
                 }
 
-            // --- Baigti ėjimą (force) ---
+            //   Baigti ėjimą (force)  
             case "FORCE_ENDTURN_MULTI":
                 {
                     if (!isHost || game == null) break;
@@ -962,7 +963,7 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand)),
                 }
 
 
-            // --- Žaidimo pabaiga ---
+            //   Žaidimo pabaiga  
             case "GAME_OVER":
                 {
                     if (gameOverSent && !isHost) return; // host'ui leidžiam vis tiek pereiti
@@ -989,7 +990,7 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand)),
                         finishOrderReceived = JsonSerializer.Deserialize<List<string>>(orderJson);
 
 
-                    // --- Host'ui rodom pranešimą ---
+                    //   Host'ui rodom pranešimą  
                     turnText = isHost ? "Game over!" : turnText;
                     myTurn = false;
 
@@ -1088,6 +1089,14 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand)),
     private async Task RefreshUI(List<string>? winners = null, List<string>? losers = null, List<string>? finishOrder =
     null)
     {
+
+        if (statsSent)
+        {
+            Console.WriteLine("[REFRESHUI] XP jau buvo suteikti, praleidžiam.");
+            return;
+        }
+        statsSent = true;
+
         bool playerWon = winners?.Contains(me!.Name) == true;
         var result = playerWon ? "winner" : "loser";
 
@@ -1167,7 +1176,7 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand)),
         padding: 20px;
     }
 
-    /* --- laukimo ekranas --- */
+    /*   laukimo ekranas   */
     .waiting-container {
         display: flex;
         flex-direction: column;
@@ -1225,7 +1234,7 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand)),
         transform: translateY(-2px);
     }
 
-    /* --- kelių oponentų rankos --- */
+    /*   kelių oponentų rankos   */
     .multi-opponents {
         position: fixed;
         top: 10px;
@@ -1308,8 +1317,8 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand)),
         width: 100%;
     }
 
-    /* --- stalo zonos --- */
-    /* --- Kortų poros ant stalo --- */
+    /*   stalo zonos   */
+    /*   Kortų poros ant stalo   */
     .table-cards {
         display: flex;
         justify-content: center;
@@ -1331,7 +1340,7 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand)),
         justify-content: center;
     }
 
-    /* --- Atakos korta --- */
+    /*   Atakos korta   */
     .attack-card {
         width: 100px;
         height: 150px;
@@ -1339,7 +1348,7 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand)),
         z-index: 5;
     }
 
-    /* --- Gynybos korta --- */
+    /*   Gynybos korta   */
     .defend-card {
         position: absolute;
         top: 40px;
@@ -1352,7 +1361,7 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand)),
 
 
 
-    /* --- žaidėjo ranka --- */
+    /*   žaidėjo ranka   */
     .player-hand {
         position: fixed;
         bottom: 70px;
@@ -1367,7 +1376,7 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand)),
         z-index: 10;
     }
 
-    /* --- mygtukai --- */
+    /*   mygtukai   */
     .turn-buttons {
         position: fixed;
         right: 30px;
@@ -1378,7 +1387,7 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand)),
         z-index: 20;
     }
 
-    /* --- Vieningas mygtukų stilius --- */
+    /*   Vieningas mygtukų stilius   */
     .turn-buttons button {
         padding: 12px 24px;
         font-weight: 600;
@@ -1393,7 +1402,7 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand)),
         box-shadow: 0 2px 5px rgba(0, 0, 0, 0.25);
     }
 
-    /* --- Hover efektas (aktyvus) --- */
+    /*   Hover efektas (aktyvus)   */
     .turn-buttons button:hover:not(:disabled) {
         background-color: #507bc0;
         /* šviesesnis mėlynas */
@@ -1402,13 +1411,13 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand)),
         color: #f0e1b4;
     }
 
-    /* --- Paspaudimo efektas --- */
+    /*   Paspaudimo efektas   */
     .turn-buttons button:active:not(:disabled) {
         transform: translateY(0);
         box-shadow: 0 2px 5px rgba(0, 0, 0, 0.25);
     }
 
-    /* --- Neaktyvūs (disabled) --- */
+    /*   Neaktyvūs (disabled)   */
     .turn-buttons button:disabled {
         background-color: #5f728f;
         color: #dcdcdc;
@@ -1417,7 +1426,7 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand)),
         box-shadow: none;
     }
 
-    /* --- Jei nori išlaikyti simbolinį skirtumą tarp dviejų mygtukų --- */
+    /*   Jei nori išlaikyti simbolinį skirtumą tarp dviejų mygtukų   */
     .btn-end-turn {
         background-color: #3a5a8c;
         /* mėlynas */
@@ -1432,7 +1441,7 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand)),
         background-color: #e0913e;
     }
 
-    /* --- kozerio korta ir eilės informacija --- */
+    /*   kozerio korta ir eilės informacija   */
     .deck-wrapper {
         position: fixed;
         bottom: 100px;
@@ -1460,7 +1469,7 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand)),
     }
 
 
-    /* --- žaidėjo info bar --- */
+    /*   žaidėjo info bar   */
     .player-info-bar {
         position: fixed;
         bottom: 5px;
