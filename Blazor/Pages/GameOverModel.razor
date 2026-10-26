@@ -17,7 +17,6 @@
             }
         </h2>
         <div class="button-group">
-            <button class="btn" @onclick="PlayAgain">Play again</button>
             <NavLink class="btn" href="/start">Main Menu</NavLink>
             <NavLink class="btn" href="/gamehistory">Game History</NavLink>
         </div>
@@ -34,12 +33,7 @@
     {
         NavigationManager.NavigateTo("/start");
     }
-    
-    private void PlayAgain()
-    {
-        // Nukreipiame atgal į žaidimo puslapį, kad iš naujo inicijuotų žaidimą
-        NavigationManager.NavigateTo("/game/1vsbot", forceLoad: true); 
-    }
+
 }
 <style>
 /* Bendras modalo išdėstymas ir dydžiai, spalvos imamos iš themes.css */

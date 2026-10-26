@@ -12,7 +12,7 @@
 @inject UserSession Session
 @inject NavigationManager NavigationManager
 @inject UserSession UserSession
-@inject CardSettingsService CardSettingsService 
+@inject CardSettingsService CardSettingsService
 @implements IDisposable
 
 <div class="page-wrapper" style="background-color: @CardSettingsService.SelectedTableColor;">
@@ -65,7 +65,7 @@
         <div class="chat-container-wrapper">
             <ChatWindow />
         </div>
-        
+
         <!-- Kortos ant stalo -->
         <div class="table-cards">
             @if (game?.State?.TableCards != null && game.State.TableCards.Count > 0)
@@ -151,29 +151,29 @@
     {
         // Prenumeruojame paslaugos pokyčius, kad atnaujintume UI keičiantis stalo spalvai
         CardSettingsService.OnChange += StateHasChanged;
-       
+
     }
-    
+
     protected override async Task OnInitializedAsync()
     {
         // Svarbu: išvalyti senus event'us prieš registruojant naujus
-    GameClient.OnStartGame -= HostStartGame;
-    GameClient.OnGameActionReceived -= ApplyAction;
+        GameClient.OnStartGame -= HostStartGame;
+        GameClient.OnGameActionReceived -= ApplyAction;
 
-   
+
         if (UserSession?.CurrentUser == null || UserSession.Username == "Svečias")
         {
             NavigationManager.NavigateTo("/login");
             return;
         }
-    if (UserSession.CurrentUser != null)
-    {
-        // 1. Įkeliame Kortų Nugarėlės Spalvą
-        CardSettingsService.SetCardColor(UserSession.CurrentUser.SelectedCardColor);
-        
-        // 2. Įkeliame Stalo Fono Spalvą
-        CardSettingsService.SetTableColor(UserSession.CurrentUser.SelectedTableColor);
-    }
+        if (UserSession.CurrentUser != null)
+        {
+            // 1. Įkeliame Kortų Nugarėlės Spalvą
+            CardSettingsService.SetCardColor(UserSession.CurrentUser.SelectedCardColor);
+
+            // 2. Įkeliame Stalo Fono Spalvą
+            CardSettingsService.SetTableColor(UserSession.CurrentUser.SelectedTableColor);
+        }
         GameClient.OnStartGame += HostStartGame;
         GameClient.OnGameActionReceived += ApplyAction;
 
@@ -205,7 +205,7 @@
         opponent = new Player(opponentName);
         if (opponentName != null)
         {
-           _ = FetchOpponentAvatar(opponentName);
+            _ = FetchOpponentAvatar(opponentName);
         }
         game = new DurakGameEngine(new List<Player> { me, opponent });
 
@@ -246,11 +246,11 @@
 
         var p1Name = a.Data.ContainsKey("p1name") ? a.Data["p1name"] : "Žaidėjas1";
         var p2Name = a.Data.ContainsKey("p2name") ? a.Data["p2name"] : "Žaidėjas2";
-       
-        
+
+
         // Nustatom, kas yra kas pagal prisijungusio vartotojo vardą
         string opponentName;
-        
+
         if (myName == p1Name)
             opponentName = p2Name;
         else if (myName == p2Name)
@@ -350,12 +350,12 @@
             {
 
                 UserSession.AddGameHistoryEntry(
-            turnNumber: game.State.TurnNumber,
-            player: me.Name,
-            action: "DEFEND",
-            cardPlayed: card,
-            attackCard: attackCard
-        );
+                turnNumber: game.State.TurnNumber,
+                player: me.Name,
+                action: "DEFEND",
+                cardPlayed: card,
+                attackCard: attackCard
+                );
 
                 myTurn = false;
                 UpdateTurnText();
@@ -383,11 +383,11 @@
         {
 
             UserSession.AddGameHistoryEntry(
-        turnNumber: game.State.TurnNumber,
-        player: me.Name,
-        action: "ATTACK",
-        cardPlayed: card
-    );
+            turnNumber: game.State.TurnNumber,
+            player: me.Name,
+            action: "ATTACK",
+            cardPlayed: card
+            );
 
             myTurn = false;
             UpdateTurnText();
@@ -409,22 +409,22 @@
     private async Task PickUpCards()
     {
         if (game == null || me == null) return;
-    if (!myTurn) return;
-    if (game.State.Defender != me) return;
+        if (!myTurn) return;
+        if (game.State.Defender != me) return;
 
-    //  Visada einam per host'ą – jis sutvarkys rankas, kaladę ir, jei reikia, GAME_OVER
-    var request = new GameAction { Action = "REQUEST_PICKUP" };
-    await GameClient.SendGameActionAsync(request);
+        // Visada einam per host'ą – jis sutvarkys rankas, kaladę ir, jei reikia, GAME_OVER
+        var request = new GameAction { Action = "REQUEST_PICKUP" };
+        await GameClient.SendGameActionAsync(request);
 
-UserSession.AddGameHistoryEntry(
-    turnNumber: game.State.TurnNumber,
-    player: me!.Name,
-    action: "PICKUP"
-);
-    myTurn = false;
-    UpdateTurnText();
-    await InvokeAsync(StateHasChanged);
-    
+        UserSession.AddGameHistoryEntry(
+        turnNumber: game.State.TurnNumber,
+        player: me!.Name,
+        action: "PICKUP"
+        );
+        myTurn = false;
+        UpdateTurnText();
+        await InvokeAsync(StateHasChanged);
+
     }
 
     private async Task EndTurn()
@@ -479,11 +479,11 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand ?? new List<Card>()))
             var request = new GameAction { Action = "REQUEST_ENDTURN" };
             await GameClient.SendGameActionAsync(request);
         }
-UserSession.AddGameHistoryEntry(
-    turnNumber: game.State.TurnNumber,
-    player: game.State.Attacker.Name,
-    action: "ENDTURN"
-);
+        UserSession.AddGameHistoryEntry(
+        turnNumber: game.State.TurnNumber,
+        player: game.State.Attacker.Name,
+        action: "ENDTURN"
+        );
         myTurn = false;
         UpdateTurnText();
         await InvokeAsync(StateHasChanged);
@@ -751,7 +751,6 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand))
 
                     myTurn = false;
 
-                    // čia jau naudojam tavo RefreshUI navigacijai į /gameover/...
                     await RefreshUI();
                     break;
                 }
@@ -804,63 +803,71 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand))
 
     private Random rnd = new();
     private string GenerateRoomCode(int length = 6)
-{
-    const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
-    string core = new string(Enumerable.Repeat(chars, length)
+    {
+        const string chars = "ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789";
+        string core = new string(Enumerable.Repeat(chars, length)
         .Select(s => s[rnd.Next(s.Length)]).ToArray());
-    return "A" + core; // prefiksas A – 1v1 žaidimams
-}
+        return "A" + core; // prefiksas A – 1v1 žaidimams
+    }
 
     private async Task RefreshUI()
     {
-        if (game?.State?.IsGameOver == true && !statsSent)
+
+
+        // Jeigu jau siuntėme, išeinam iš karto
+        if (statsSent)
+            return;
+
+        // Jeigu žaidimas dar nepasibaigė – irgi nieko nedarom
+        if (game?.State?.IsGameOver != true)
+            return;
+
+        // Dabar pažymim, kad išsiuntėm — prieš bet kokį await
+        statsSent = true;
+
+        bool playerWon = me!.Hand.Count == 0;
+        var result = playerWon ? "winner" : "loser";
+
+        Console.WriteLine($"Game over. PlayerWon: {playerWon}");
+
+        if (UserSession.UserId > 0)
         {
-            statsSent = true;
-            bool playerWon = me!.Hand.Count == 0;
-            var result = playerWon ? "winner" : "loser";
-
-            Console.WriteLine($"Game over. PlayerWon: {playerWon}");
-
-            if (UserSession.UserId > 0)
+            HttpResponseMessage response;
+            if (playerWon)
             {
-                HttpResponseMessage response;
-                if (playerWon)
-                {
-                    response = await Http.PostAsync($"api/stats/win/{UserSession.UserId}", null);
-                    await Http.PostAsync($"api/users/addxp/{UserSession.UserId}/100", null); // 100 XP už 1vs1 laimėjimą
-                    Console.WriteLine($"POST win status: {response.StatusCode}");
-                }
-                else
-                {
-                    response = await Http.PostAsync($"api/stats/loss/{UserSession.UserId}", null);
-                    Console.WriteLine($"POST loss status: {response.StatusCode}");
-                }
-
-                // Atnaujiname sesijos duomenis po XP ir laimėjimo
-                var refreshedUser = await Http.GetFromJsonAsync<User>($"api/users/{UserSession.UserId}");
-                if (refreshedUser != null)
-                {
-                    UserSession.SetUser(refreshedUser);
-                    Console.WriteLine($"Updated Wins: {refreshedUser.Wins}, Losses: {refreshedUser.Losses}, XP: {refreshedUser.ExperiencePoints}, Level: {refreshedUser.Level}");
-                }
-
-               
+                response = await Http.PostAsync($"api/stats/win/{UserSession.UserId}", null);
+                await Http.PostAsync($"api/users/addxp/{UserSession.UserId}/100", null); // 100 XP už 1vs1 laimėjimą
+                Console.WriteLine($"POST win status: {response.StatusCode}");
+            }
+            else
+            {
+                response = await Http.PostAsync($"api/stats/loss/{UserSession.UserId}", null);
+                Console.WriteLine($"POST loss status: {response.StatusCode}");
             }
 
-            NavigationManager.NavigateTo($"/gameover/{result}");
-            await InvokeAsync(StateHasChanged);
-            return;
+            // Atnaujiname sesijos duomenis po XP ir laimėjimo
+            var refreshedUser = await Http.GetFromJsonAsync<User>($"api/users/{UserSession.UserId}");
+            if (refreshedUser != null)
+            {
+                UserSession.SetUser(refreshedUser);
+                Console.WriteLine($"Updated Wins: {refreshedUser.Wins}, Losses: {refreshedUser.Losses}, XP: {refreshedUser.ExperiencePoints}, Level: {refreshedUser.Level}");
+            }
+
+
         }
 
+        NavigationManager.NavigateTo($"/gameover/{result}");
         await InvokeAsync(StateHasChanged);
+        return;
+
     }
 
     public void Dispose()
-{
-    CardSettingsService.OnChange -= StateHasChanged;
-    GameClient.OnStartGame -= HostStartGame;
-    GameClient.OnGameActionReceived -= ApplyAction;
-}
+    {
+        CardSettingsService.OnChange -= StateHasChanged;
+        GameClient.OnStartGame -= HostStartGame;
+        GameClient.OnGameActionReceived -= ApplyAction;
+    }
 }
 
 
@@ -1201,21 +1208,22 @@ game.State.Players.ToDictionary(p => p.Name, p => p.Hand))
         opacity: 1;
         visibility: visible;
     }
+
     .player-avatar-small {
         width: 50px;
         height: 50px;
         border-radius: 50%;
-        border: 2px solid #bbb; 
+        border: 2px solid #bbb;
         object-fit: cover;
-    }   
+    }
+
     .opponent-avatar {
         width: 40px;
         height: 40px;
         border-radius: 50%;
-        border: 2px solid #bbb; 
+        border: 2px solid #bbb;
         object-fit: cover;
     }
+
     /* ... esamas stilius ... */
-
-
 </style>

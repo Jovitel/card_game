@@ -280,7 +280,7 @@
                 if (playerWon)
                 {
                     response = await Http.PostAsync($"api/stats/win/{UserSession.UserId}", null);
-                    await Http.PostAsync($"api/users/addxp/{UserSession.UserId}/50", null); // Pvz. 50 XP už laimėjimą prieš botą
+                    await Http.PostAsync($"api/users/addxp/{UserSession.UserId}/50", null); //50 XP už laimėjimą prieš botą
 
 
                     Console.WriteLine($"POST win status: {response.StatusCode}");
@@ -407,7 +407,7 @@
         gap: 0;
     }
 
-    /* --- mygtukai --- */
+
     .turn-buttons {
         position: fixed;
         right: 30px;
@@ -418,7 +418,7 @@
         z-index: 20;
     }
 
-    /* --- Vieningas mygtukų stilius --- */
+    
     .turn-buttons button {
         padding: 12px 24px;
         font-weight: 600;
@@ -433,7 +433,7 @@
         box-shadow: 0 2px 5px rgba(0, 0, 0, 0.25);
     }
 
-    /* --- Hover efektas (aktyvus) --- */
+  
     .turn-buttons button:hover:not(:disabled) {
         background-color: #507bc0;
         /* šviesesnis mėlynas */
@@ -442,13 +442,13 @@
         color: #f0e1b4;
     }
 
-    /* --- Paspaudimo efektas --- */
+ 
     .turn-buttons button:active:not(:disabled) {
         transform: translateY(0);
         box-shadow: 0 2px 5px rgba(0, 0, 0, 0.25);
     }
 
-    /* --- Neaktyvūs (disabled) --- */
+    
     .turn-buttons button:disabled {
         background-color: #5f728f;
         color: #dcdcdc;
@@ -457,7 +457,7 @@
         box-shadow: none;
     }
 
-    /* --- Jei nori išlaikyti simbolinį skirtumą tarp dviejų mygtukų --- */
+   
     .btn-end-turn {
         background-color: #3a5a8c;
         /* mėlynas */

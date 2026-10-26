@@ -45,7 +45,7 @@ namespace CardGame.Api.Controllers
         public async Task<ActionResult<User>> GetUserByUsername(string username)
         {
             var user = await _context.Users
-                                     .FirstOrDefaultAsync(u => u.UserName == username);
+                .FirstOrDefaultAsync(u => u.UserName == username);
 
             if (user == null)
             {
@@ -64,12 +64,13 @@ namespace CardGame.Api.Controllers
 
             user.ExperiencePoints += amount;
 
-            // Didesnė XP kreivė – sunkesni lygiai
-            while (user.ExperiencePoints >= GetXpForNextLevel(user.Level))
+            int xpRequired = GetXpForNextLevel(user.Level);
+            while (user.ExperiencePoints >= xpRequired)
             {
-                user.ExperiencePoints -= GetXpForNextLevel(user.Level);
                 user.Level++;
+                xpRequired = GetXpForNextLevel(user.Level);
             }
+
 
             await _context.SaveChangesAsync();
             return Ok(user);
@@ -172,6 +173,25 @@ namespace CardGame.Api.Controllers
             await _context.SaveChangesAsync();
             return Ok();
         }
+
+        [HttpPost("settheme/{id}/{theme}")]
+        public async Task<IActionResult> SetTheme(int id, string theme)
+        {
+            var user = await _context.Users.FindAsync(id);
+            if (user == null)
+                return NotFound();
+
+            if (theme != "dark" && theme != "light")
+                return BadRequest("Neteisinga temos reikšmė.");
+
+            user.ThemePreference = theme;
+            await _context.SaveChangesAsync();
+
+            return Ok();
+        }
+
+
+
     }
     public class UsernameUpdateModel
     {
